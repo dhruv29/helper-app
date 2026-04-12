@@ -11,7 +11,7 @@ app.use(express.json())
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', model: 'claude-opus-4-6' })
+  res.json({ status: 'ok', model: 'claude-sonnet-4-6' })
 })
 
 // Voice chat endpoint — streams Claude's response via SSE

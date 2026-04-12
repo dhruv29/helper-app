@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 
 const STATES = {
   IDLE: 'idle',
@@ -79,6 +79,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
   const [transcript, setTranscript] = useState('')
   const [response, setResponse] = useState('')
   const [conversationHistory, setConversationHistory] = useState([])
+  const [textInput, setTextInput] = useState('')
 
   const recognitionRef = useRef(null)
   const synthRef = useRef(window.speechSynthesis)
@@ -112,7 +113,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       setTranscript(text)
       if (result.isFinal) {
         recognition.stop()
-        sendToHelper(text)
+        sendToHelper(text, true) // fromVoice
       }
     }
 
@@ -131,6 +132,15 @@ const VoiceConnect = forwardRef(function VoiceConnect(
 
     recognitionRef.current = recognition
   }, [])
+
+  const stripForSpeech = (text) =>
+    text
+      .replace(/[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{2300}-\u{23FF}]/gu, '')
+      .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
+      .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\s+/g, ' ')
+      .trim()
 
   const speak = useCallback((text) => {
     return new Promise((resolve) => {
@@ -155,7 +165,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
     })
   }, [])
 
-  const sendToHelper = async (userText) => {
+  const sendToHelper = async (userText, fromVoice = false) => {
     if (!userText?.trim()) { setVoiceState(STATES.IDLE); return }
 
     setVoiceState(STATES.THINKING)
@@ -201,14 +211,17 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       const finalHistory = [...newHistory, { role: 'assistant', content: fullResponse }]
       setConversationHistory(finalHistory)
       saveToLocalStorage(finalHistory)
+      setResponse('') // clear live bubble — message is now in history
 
-      if (fullResponse && !abortRef.current) await speak(fullResponse)
+      if (fromVoice && fullResponse && !abortRef.current) {
+        await speak(stripForSpeech(fullResponse))
+      }
       setVoiceState(STATES.IDLE)
     } catch (err) {
       console.error(err)
       setVoiceState(STATES.ERROR)
       setResponse('Sorry, something went wrong. Please try again.')
-      await speak('Sorry, something went wrong. Please try again.')
+      if (fromVoice) await speak('Sorry, something went wrong. Please try again.')
       setVoiceState(STATES.IDLE)
     }
   }
@@ -270,70 +283,144 @@ const VoiceConnect = forwardRef(function VoiceConnect(
     },
   }))
 
-  // ── Compact render (web — right panel, conversation only) ──────────────────
+  // ── Compact render (elder-first: big voice + chat log) ───────────────────
   if (compact) {
-    const showWelcome = conversationHistory.length === 0 && voiceState === STATES.IDLE && !transcript
+    const isVoiceBusy = voiceState === STATES.THINKING || voiceState === STATES.SPEAKING || voiceState === STATES.LISTENING
+    const isTextDisabled = isVoiceBusy
+
+    const handleTextSend = () => {
+      const text = textInput.trim()
+      if (!text || isTextDisabled) return
+      setTextInput('')
+      sendToHelper(text, false) // fromVoice = false
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleTextSend()
+      }
+    }
+
+    // Voice button config per state
+    const voiceCfg = {
+      idle:      { bg: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800', icon: '🎙️', label: 'Tap to Speak',      pulse: false },
+      listening: { bg: 'bg-red-500',                                             icon: '⏹',  label: 'Tap to Stop',       pulse: true  },
+      thinking:  { bg: 'bg-amber-400 cursor-not-allowed',                        icon: '✨',  label: 'Sarah is thinking…', pulse: false },
+      speaking:  { bg: 'bg-emerald-500',                                         icon: '🔊',  label: 'Sarah is speaking…', pulse: false },
+      error:     { bg: 'bg-red-500 hover:bg-red-600',                            icon: '🔄',  label: 'Try again',          pulse: false },
+    }
+    const vcfg = voiceCfg[voiceState] || voiceCfg.idle
 
     return (
-      <div className="flex flex-col h-full">
-        <div className="overflow-y-auto px-6 py-6" style={{ maxHeight: 320 }}>
-          <AnimatePresence>
-            {showWelcome ? (
-              <motion.div
-                className="flex flex-col items-center justify-center h-full text-center py-20"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <motion.div
-                  className="text-6xl mb-4"
-                  animate={{ scale: [1, 1.08, 1] }}
-                  transition={{ duration: 2.5, repeat: Infinity }}
-                >
-                  👋
-                </motion.div>
-                <p className="text-xl font-black text-helper-navy mb-2">Hello! I'm Sarah.</p>
-                <p className="text-helper-gray-text leading-relaxed max-w-xs">
-                  Tap <span className="font-semibold text-helper-blue">Talk</span> on the left or choose a quick action above to get started.
-                </p>
-              </motion.div>
-            ) : (
-              <div>
-                {conversationHistory.map((msg, i) => (
-                  <ChatBubble key={i} role={msg.role} content={msg.content} />
-                ))}
-                {transcript && voiceState === STATES.LISTENING && (
-                  <ChatBubble role="user" content={transcript} isLive />
-                )}
-                {voiceState === STATES.THINKING && !response && (
-                  <ChatBubble role="assistant" content="" isTyping />
-                )}
-                {response && (
-                  <ChatBubble
-                    role="assistant"
-                    content={response}
-                    isLive={voiceState === STATES.SPEAKING || voiceState === STATES.THINKING}
-                  />
-                )}
-                <div ref={chatEndRef} />
-              </div>
-            )}
-          </AnimatePresence>
+      <div className="flex flex-col">
+
+        {/* ── Chat log — top (standard chat pattern) ── */}
+        <div className="overflow-y-auto px-5 py-4 bg-white" style={{ minHeight: 220, maxHeight: 340 }}>
+          {/* Sarah greeting */}
+          <motion.div
+            className="flex justify-start mb-3"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs mr-2.5 mt-1 shadow-md">
+              S
+            </div>
+            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[78%]">
+              <p className="text-base leading-relaxed text-helper-navy">
+                Hi! I'm Sarah. Tap the big button below to talk, or type a message.
+              </p>
+            </div>
+          </motion.div>
+
+          {conversationHistory.map((msg, i) => (
+            <ChatBubble key={i} role={msg.role} content={msg.content} />
+          ))}
+          {transcript && voiceState === STATES.LISTENING && (
+            <ChatBubble role="user" content={transcript} isLive />
+          )}
+          {voiceState === STATES.THINKING && !response && (
+            <ChatBubble role="assistant" content="" isTyping />
+          )}
+          {response && (
+            <ChatBubble
+              role="assistant"
+              content={response}
+              isLive={voiceState === STATES.SPEAKING || voiceState === STATES.THINKING}
+            />
+          )}
+          <div ref={chatEndRef} />
+          {conversationHistory.length > 0 && voiceState === STATES.IDLE && (
+            <div className="flex justify-center mt-1">
+              <button onClick={clearHistory} className="text-xs text-gray-400 hover:text-red-400 underline">
+                Clear conversation
+              </button>
+            </div>
+          )}
         </div>
 
-        {conversationHistory.length > 0 && voiceState === STATES.IDLE && (
-          <div className="px-6 py-3 border-t border-gray-100 flex justify-between items-center">
-            <span className="text-xs text-helper-gray-text">
-              {Math.floor(conversationHistory.length / 2)} exchange{Math.floor(conversationHistory.length / 2) !== 1 ? 's' : ''}
-            </span>
-            <button
-              onClick={clearHistory}
-              className="text-xs text-helper-gray-text hover:text-helper-red underline transition-colors"
+        {/* ── Bottom controls ── */}
+        <div className="border-t border-gray-100 bg-gray-50 px-5 pt-4 pb-5">
+
+          {/* Text input row */}
+          <div className="flex items-center gap-2 mb-5">
+            <input
+              type="text"
+              value={textInput}
+              onChange={e => setTextInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isTextDisabled}
+              placeholder={isVoiceBusy ? vcfg.label : 'Type a message…'}
+              className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-base text-helper-navy placeholder-gray-400 outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50 transition-all"
+            />
+            <motion.button
+              onClick={handleTextSend}
+              disabled={!textInput.trim() || isTextDisabled}
+              className="flex-shrink-0 w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-md hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              whileTap={{ scale: 0.9 }}
             >
-              Clear
-            </button>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </motion.button>
           </div>
-        )}
+
+          {/* Big voice button — centred, unmissable */}
+          <div className="flex flex-col items-center">
+            <div className="relative">
+              {vcfg.pulse && (
+                <motion.div
+                  className="absolute rounded-full bg-red-400"
+                  style={{ inset: -12 }}
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              )}
+              <motion.button
+                onClick={handleButtonPress}
+                disabled={voiceState === STATES.THINKING}
+                className={`relative w-20 h-20 rounded-full text-white flex flex-col items-center justify-center gap-1 shadow-2xl transition-colors ${vcfg.bg}`}
+                whileHover={voiceState === STATES.IDLE || voiceState === STATES.ERROR ? { scale: 1.07 } : {}}
+                whileTap={{ scale: 0.92 }}
+              >
+                <span className="text-3xl leading-none">{vcfg.icon}</span>
+              </motion.button>
+            </div>
+            <motion.p
+              key={vcfg.label}
+              className="mt-2.5 text-sm font-bold text-helper-navy"
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18 }}
+            >
+              {vcfg.label}
+            </motion.p>
+          </div>
+
+        </div>
+
       </div>
     )
   }

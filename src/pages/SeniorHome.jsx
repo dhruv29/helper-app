@@ -12,49 +12,6 @@ const QUICK_ACTIONS = [
   { icon: '🎉', label: '80s Club',     message: "Tell me about my 80s Club. When is our next meeting?" },
 ]
 
-// Per-state config for the ONE big Sarah button
-const SARAH_STATES = {
-  idle: {
-    bg: '#4F46E5',
-    glow: 'rgba(79, 70, 229, 0.38)',
-    icon: '🎙️',
-    action: 'Talk to Sarah',
-    hint: 'Tap to begin',
-    pulse: false,
-  },
-  listening: {
-    bg: '#DC2626',
-    glow: 'rgba(220, 38, 38, 0.42)',
-    icon: '🎙️',
-    action: 'Sarah is listening',
-    hint: 'Tap to stop',
-    pulse: true,
-  },
-  thinking: {
-    bg: '#D97706',
-    glow: 'rgba(217, 119, 6, 0.42)',
-    icon: '✨',
-    action: 'Sarah is thinking',
-    hint: null,
-    pulse: true,
-  },
-  speaking: {
-    bg: '#059669',
-    glow: 'rgba(5, 150, 105, 0.42)',
-    icon: '🔊',
-    action: 'Sarah is speaking',
-    hint: 'Tap to stop',
-    pulse: false,
-  },
-  error: {
-    bg: '#DC2626',
-    glow: 'rgba(220, 38, 38, 0.3)',
-    icon: '🔄',
-    action: 'Something went wrong',
-    hint: 'Tap to try again',
-    pulse: false,
-  },
-}
 
 const UPCOMING = {
   medications: [
@@ -106,19 +63,18 @@ function TabBar({ tab, setTab }) {
 
 function QuickActions({ onAction }) {
   return (
-    <div className="flex gap-3 mb-7 overflow-x-auto pb-1">
+    <div className="flex gap-2 overflow-x-auto pb-1 flex-shrink-0" style={{ scrollbarWidth: 'none' }}>
       {QUICK_ACTIONS.map((qa, i) => (
         <motion.button
           key={qa.label}
           onClick={() => onAction(qa.message)}
-          className="flex-shrink-0 flex items-center gap-2.5 px-5 py-3 bg-white border border-gray-200 rounded-2xl font-semibold text-helper-navy text-sm shadow-sm hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-md transition-all"
-          initial={{ opacity: 0, y: 10 }}
+          className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-full font-semibold text-helper-navy text-sm shadow-sm hover:border-indigo-300 hover:bg-indigo-50 transition-all"
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.06 }}
-          whileHover={{ y: -2 }}
+          transition={{ delay: i * 0.05 }}
           whileTap={{ scale: 0.95 }}
         >
-          <span className="text-xl">{qa.icon}</span>
+          <span className="text-base">{qa.icon}</span>
           {qa.label}
         </motion.button>
       ))}
@@ -126,97 +82,6 @@ function QuickActions({ onAction }) {
   )
 }
 
-function SarahButton({ voiceState, onPress }) {
-  const cfg = SARAH_STATES[voiceState] || SARAH_STATES.idle
-
-  return (
-    <div className="flex flex-col items-center gap-8">
-      {/* Name above */}
-      <div className="text-center">
-        <p className="text-xs uppercase tracking-widest text-helper-gray-text font-semibold mb-1">Your companion</p>
-        <h2 className="text-4xl font-black text-helper-navy">Sarah</h2>
-      </div>
-
-      {/* Outer warm glow ring — only when active */}
-      <div className="relative flex items-center justify-center" style={{ width: 240, height: 240 }}>
-        <AnimatePresence>
-          {cfg.pulse && (
-            <motion.div
-              className="absolute rounded-full"
-              style={{ width: 240, height: 240, backgroundColor: cfg.bg }}
-              initial={{ scale: 0.85, opacity: 0.5 }}
-              animate={{ scale: 1.45, opacity: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
-            />
-          )}
-        </AnimatePresence>
-
-        {/* The ONE button */}
-        <motion.button
-          onClick={onPress}
-          className="relative rounded-full text-white flex flex-col items-center justify-center gap-2 select-none cursor-pointer shadow-2xl"
-          style={{ width: 210, height: 210 }}
-          animate={{
-            backgroundColor: cfg.bg,
-            boxShadow: `0 24px 64px ${cfg.glow}`,
-          }}
-          transition={{ duration: 0.5, ease: 'easeInOut' }}
-          whileHover={voiceState === 'idle' || voiceState === 'error' ? { scale: 1.05 } : {}}
-          whileTap={{ scale: 0.93 }}
-        >
-          <motion.span
-            className="text-5xl"
-            key={cfg.icon}
-            initial={{ scale: 0.6, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 300 }}
-          >
-            {cfg.icon}
-          </motion.span>
-
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={cfg.action}
-              className="text-base font-black text-center leading-tight px-6"
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
-              transition={{ duration: 0.2 }}
-            >
-              {cfg.action}
-            </motion.span>
-          </AnimatePresence>
-
-          {cfg.hint && (
-            <span className="text-xs text-white/70 font-medium">{cfg.hint}</span>
-          )}
-        </motion.button>
-      </div>
-
-      {/* Waveform — listening */}
-      <div className="h-7 flex items-center justify-center gap-1">
-        <AnimatePresence>
-          {voiceState === 'listening' && (
-            <>
-              {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                <motion.div
-                  key={i}
-                  className="wave-bar w-1.5 bg-helper-red rounded-full"
-                  style={{ animationDelay: `${(i - 1) * 0.1}s` }}
-                  initial={{ scaleY: 0, opacity: 0 }}
-                  animate={{ scaleY: 1, opacity: 1 }}
-                  exit={{ scaleY: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                />
-              ))}
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  )
-}
 
 function HistoryTab() {
   const [sessions] = useState(() => {
@@ -355,7 +220,6 @@ function UpcomingTab() {
 
 export default function SeniorHome({ onAlert }) {
   const [tab, setTab]               = useState('talk')
-  const [voiceState, setVoiceState] = useState('idle')
   const [showEmergency, setShowEmergency] = useState(false)
   const [emergencySent, setEmergencySent] = useState(false)
   const vcRef = useRef(null)
@@ -382,7 +246,7 @@ export default function SeniorHome({ onAlert }) {
     <div className="min-h-screen bg-helper-gray-light">
       <TabBar tab={tab} setTab={setTab} />
 
-      <div className="max-w-7xl mx-auto px-8 py-8">
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
         <AnimatePresence mode="wait">
 
           {/* ── TALK TAB ─────────────────────────────────────────────── */}
@@ -394,32 +258,34 @@ export default function SeniorHome({ onAlert }) {
               exit={{ opacity: 0, y: -14 }}
               transition={{ duration: 0.25 }}
             >
-              <QuickActions onAction={handleQuickAction} />
+              {/* Quick action pills */}
+              <div className="mb-3">
+                <QuickActions onAction={handleQuickAction} />
+              </div>
 
-              <div className="max-w-2xl mx-auto">
-                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
 
-                  {/* Sarah button — top of the card */}
-                  <div className="flex flex-col items-center pt-10 pb-6 px-8">
-                    <SarahButton
-                      voiceState={voiceState}
-                      onPress={() => vcRef.current?.triggerVoice()}
-                    />
+                {/* Chat header */}
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-black text-sm shadow-md">
+                    S
                   </div>
-
-                  {/* Conversation — flows directly below Sarah */}
-                  <div className="border-t border-gray-100">
-                    <VoiceConnect
-                      ref={vcRef}
-                      onAlert={onAlert}
-                      mode="senior"
-                      onStateChange={setVoiceState}
-                      compact
-                    />
+                  <div>
+                    <p className="font-black text-helper-navy text-base leading-tight">Sarah</p>
+                    <p className="text-xs text-emerald-500 font-semibold">● Online</p>
                   </div>
+                </div>
 
-                  {/* Emergency — bottom of card */}
-                  <div className="px-8 pb-8 pt-2">
+                {/* Chat + controls */}
+                <VoiceConnect
+                  ref={vcRef}
+                  onAlert={onAlert}
+                  mode="senior"
+                  compact
+                />
+
+                {/* Emergency */}
+                <div className="px-6 pb-6 pt-2">
                     <AnimatePresence mode="wait">
                       {!showEmergency ? (
                         <motion.button
@@ -460,7 +326,6 @@ export default function SeniorHome({ onAlert }) {
                     </AnimatePresence>
                   </div>
 
-                </div>
               </div>
             </motion.div>
           )}
