@@ -37,42 +37,55 @@ app.post('/api/transcribe', async (req, res) => {
   }
 })
 
-// Text-to-speech with ElevenLabs
+// Text-to-speech — auto-selects provider based on available keys.
+// Priority: TTS_PROVIDER env var → elevenlabs if key set → fish if key set → error
+// Cost: ElevenLabs ~$0.05/1K chars, Fish Audio ~$0.001/1K chars (50x cheaper)
+async function ttsElevenLabs(text) {
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
+  const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_turbo_v2_5',
+      voice_settings: { stability: 0.75, similarity_boost: 0.75 },
+    }),
+  })
+  if (!r.ok) throw new Error(`ElevenLabs: ${await r.text()}`)
+  return r.arrayBuffer()
+}
+
+async function ttsFishAudio(text) {
+  const r = await fetch('https://api.fish.audio/v1/tts', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.FISH_AUDIO_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      format: 'mp3',
+      normalize: true,
+      latency: 'normal',
+      ...(process.env.FISH_AUDIO_VOICE_ID && { reference_id: process.env.FISH_AUDIO_VOICE_ID }),
+    }),
+  })
+  if (!r.ok) throw new Error(`Fish Audio: ${await r.text()}`)
+  return r.arrayBuffer()
+}
+
 app.post('/api/speak', async (req, res) => {
   const { text } = req.body
   if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
 
-  if (!process.env.ELEVENLABS_API_KEY) {
-    return res.status(500).json({ error: 'ELEVENLABS_API_KEY not set in .env' })
+  const provider = process.env.TTS_PROVIDER
+    || (process.env.ELEVENLABS_API_KEY ? 'elevenlabs' : null)
+    || (process.env.FISH_AUDIO_API_KEY  ? 'fish'       : null)
+
+  if (!provider) {
+    return res.status(500).json({ error: 'Set ELEVENLABS_API_KEY or FISH_AUDIO_API_KEY in .env' })
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
-
   try {
-    const elevenRes = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      {
-        method: 'POST',
-        headers: {
-          'xi-api-key': process.env.ELEVENLABS_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          model_id: 'eleven_turbo_v2_5',
-          voice_settings: { stability: 0.75, similarity_boost: 0.75 },
-        }),
-      }
-    )
-
-    if (!elevenRes.ok) {
-      const err = await elevenRes.text()
-      console.error('[speak error]', err)
-      return res.status(500).json({ error: 'ElevenLabs error' })
-    }
-
+    const buf = provider === 'fish' ? await ttsFishAudio(text) : await ttsElevenLabs(text)
     res.setHeader('Content-Type', 'audio/mpeg')
-    const buf = await elevenRes.arrayBuffer()
     res.send(Buffer.from(buf))
   } catch (err) {
     console.error('[speak error]', err.message)
