@@ -39,19 +39,19 @@ const APPOINTMENTS = [
 ]
 const INSIGHT = "Margaret had a great morning — she asked about her bridge club and mentioned feeling well-rested. Medication adherence is on a 7-day streak. Watch the evening Atorvastatin dose."
 
-// ── Palette (Claude-dark inspired: warm charcoal + terracotta accent) ─────────
-// bg: #0e0c0b warm near-black  accent: #e07a52 terracotta  gold: #d4a46a
+// ── Palette — ServiceNow branding ─────────────────────────────────────────────
+// bg: deep navy  primary: #62D84E Now-green  secondary: #3db8f5 sky-blue
 
 const G = {
   card: 'bg-white/[0.05] backdrop-blur-xl border border-white/[0.07] rounded-2xl',
   div:  'border-white/[0.06]',
 }
 
-const BG      = 'linear-gradient(160deg, #0f0d0b 0%, #161310 45%, #0a0908 100%)'
-const ACCENT  = '#e07a52'   // warm terracotta
-const ACCENT2 = '#d4a46a'   // muted gold
-const GLOW_A  = 'rgba(224,122,82,0.14)'
-const GLOW_B  = 'rgba(212,164,106,0.09)'
+const BG      = 'linear-gradient(160deg, #090e1a 0%, #0e1628 45%, #070c14 100%)'
+const ACCENT  = '#62D84E'   // ServiceNow Now-green
+const ACCENT2 = '#3db8f5'   // sky blue accent
+const GLOW_A  = 'rgba(98,216,78,0.12)'
+const GLOW_B  = 'rgba(61,184,245,0.08)'
 
 const fade  = (d = 0) => ({ initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { delay: d, type: 'spring', stiffness: 260, damping: 24 } })
 const slide = (d = 0) => ({ initial: { opacity: 0, x: -10 }, animate: { opacity: 1, x: 0 }, transition: { delay: d, type: 'spring', stiffness: 260, damping: 24 } })
@@ -68,13 +68,13 @@ function Card({ children, className = '', delay = 0, style }) {
 
 function Pill({ children, color = 'white' }) {
   const c = {
-    terracotta: 'bg-[#e07a52]/15 text-[#e8a07a] border-[#e07a52]/25',
-    gold:       'bg-[#d4a46a]/15 text-[#d4a46a] border-[#d4a46a]/25',
-    emerald:    'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-    amber:      'bg-amber-500/15  text-amber-400  border-amber-500/25',
-    red:        'bg-red-500/15    text-red-400    border-red-500/25',
-    teal:       'bg-teal-500/15   text-teal-400   border-teal-500/25',
-    white:      'bg-white/[0.07]  text-white/55   border-white/10',
+    now:     'bg-[#62D84E]/15 text-[#7ee86a] border-[#62D84E]/25',
+    sky:     'bg-[#3db8f5]/15 text-[#6dceff] border-[#3db8f5]/25',
+    emerald: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
+    amber:   'bg-amber-500/15  text-amber-400  border-amber-500/25',
+    red:     'bg-red-500/15    text-red-400    border-red-500/25',
+    teal:    'bg-teal-500/15   text-teal-400   border-teal-500/25',
+    white:   'bg-white/[0.07]  text-white/55   border-white/10',
   }[color]
   return <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${c}`}>{children}</span>
 }
@@ -149,9 +149,9 @@ function OverviewTab({ alerts }) {
       {/* Hero card — warm terracotta glass */}
       <motion.div className="rounded-2xl overflow-hidden relative" {...fade(0)}
         style={{
-          background: `linear-gradient(140deg, rgba(224,122,82,0.28) 0%, rgba(212,164,106,0.12) 60%, rgba(180,100,60,0.06) 100%)`,
-          border: `1px solid rgba(224,122,82,0.20)`,
-          boxShadow: `0 0 60px rgba(224,122,82,0.10)`,
+          background: `linear-gradient(140deg, rgba(98,216,78,0.18) 0%, rgba(61,184,245,0.08) 60%, rgba(14,22,40,0.40) 100%)`,
+          border: `1px solid rgba(98,216,78,0.18)`,
+          boxShadow: `0 0 60px rgba(98,216,78,0.08)`,
         }}>
         <div className="absolute inset-0 backdrop-blur-2xl" />
         <div className="absolute -right-8 -top-8 w-52 h-52 rounded-full opacity-[0.08]"
@@ -159,7 +159,7 @@ function OverviewTab({ alerts }) {
         <div className="relative z-10 p-5">
           <div className="flex items-start justify-between mb-5">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(232,160,122,0.65)' }}>Today's Overview</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'rgba(98,216,78,0.65)' }}>Today's Overview</p>
               <h2 className="text-2xl font-black text-white leading-tight">{PARENT} is<br />doing well 👋</h2>
               <p className="text-white/35 text-xs mt-1.5">Active {ACTIVITY.lastSeen}</p>
             </div>
@@ -201,14 +201,14 @@ function OverviewTab({ alerts }) {
       {/* Sarah's insight — warm gold tone */}
       <motion.div className="rounded-2xl p-5 relative overflow-hidden" {...fade(0.10)}
         style={{
-          background: 'linear-gradient(135deg, rgba(212,164,106,0.16) 0%, rgba(224,122,82,0.07) 100%)',
-          border: '1px solid rgba(212,164,106,0.18)',
+          background: 'linear-gradient(135deg, rgba(61,184,245,0.12) 0%, rgba(98,216,78,0.06) 100%)',
+          border: '1px solid rgba(61,184,245,0.16)',
         }}>
         <div className="absolute inset-0 backdrop-blur-xl" />
         <div className="relative z-10">
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0"
-              style={{ background: 'rgba(212,164,106,0.20)', border: '1px solid rgba(212,164,106,0.30)' }}>🤖</div>
+              style={{ background: 'rgba(61,184,245,0.18)', border: '1px solid rgba(61,184,245,0.28)' }}>🤖</div>
             <div>
               <p className="text-xs font-black" style={{ color: ACCENT2 }}>Sarah's Insight</p>
               <p className="text-[10px] text-white/30">AI companion · Updated 2h ago</p>
@@ -369,9 +369,9 @@ function HealthTab() {
         </div>
         {APPOINTMENTS.map((apt, i) => {
           const bg = apt.warm
-            ? 'bg-[#e07a52]/15 border-[#e07a52]/25'
-            : 'bg-teal-500/15 border-teal-500/25'
-          const tc = apt.warm ? ACCENT : '#2dd4bf'
+            ? 'bg-[#62D84E]/15 border-[#62D84E]/25'
+            : 'bg-[#3db8f5]/15 border-[#3db8f5]/25'
+          const tc = apt.warm ? ACCENT : ACCENT2
           return (
             <div key={i} className={`px-5 py-4 flex items-center gap-4 ${i > 0 ? `border-t ${G.div}` : ''}`}>
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0 border ${bg}`}>
@@ -445,7 +445,7 @@ function FinanceTab() {
               <div className="h-[2px] w-full" style={{ background: `linear-gradient(90deg, ${ACCENT}, ${ACCENT2})` }} />
               <div className="px-5 py-4 flex items-center gap-4">
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-                  style={{ background: `rgba(224,122,82,0.12)`, border: `1px solid rgba(224,122,82,0.20)` }}>🏦</div>
+                  style={{ background: `rgba(98,216,78,0.10)`, border: `1px solid rgba(98,216,78,0.18)` }}>🏦</div>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-white text-sm">{acct.bank} {acct.name}</p>
                   <p className="text-xs text-white/35 mt-0.5">···· ···· ···· {acct.last4} · {acct.updated}</p>
@@ -547,7 +547,7 @@ export default function CaregiverDashboard({ alerts }) {
 
       {/* Header */}
       <div className="relative z-30 border-b border-white/[0.06] px-5 py-4"
-        style={{ background: 'rgba(14,12,10,0.82)', backdropFilter: 'blur(24px)' }}>
+        style={{ background: 'rgba(7,10,18,0.88)', backdropFilter: 'blur(24px)' }}>
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
             <p className="text-[10px] text-white/25 font-bold uppercase tracking-widest">Caregiver Dashboard</p>
@@ -559,7 +559,7 @@ export default function CaregiverDashboard({ alerts }) {
 
       {/* Tab bar */}
       <div className="sticky top-[73px] z-30 border-b border-white/[0.06]"
-        style={{ background: 'rgba(14,12,10,0.82)', backdropFilter: 'blur(24px)' }}>
+        style={{ background: 'rgba(7,10,18,0.88)', backdropFilter: 'blur(24px)' }}>
         <div className="max-w-2xl mx-auto flex">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
