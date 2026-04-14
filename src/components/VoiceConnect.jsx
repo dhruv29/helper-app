@@ -31,45 +31,6 @@ function saveToLocalStorage(history) {
   } catch { /* ignore */ }
 }
 
-function ChatBubble({ role, content, isLive, isTyping }) {
-  const isUser = role === 'user'
-  return (
-    <motion.div
-      className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}
-      initial={{ opacity: 0, y: 12, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-    >
-      {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs mr-3 mt-1 shadow-md">
-          S
-        </div>
-      )}
-      <div
-        className={`max-w-[78%] rounded-2xl px-5 py-3 shadow-sm ${
-          isUser
-            ? 'bg-helper-navy text-white rounded-br-md'
-            : 'bg-white border border-gray-100 text-helper-navy rounded-bl-md'
-        } ${isLive ? 'opacity-65' : ''}`}
-      >
-        {isTyping ? (
-          <div className="flex gap-1.5 items-center h-5">
-            {[0, 1, 2].map(i => (
-              <motion.div
-                key={i}
-                className="w-2 h-2 bg-helper-gray-text rounded-full"
-                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-                transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[1.05rem] leading-relaxed">{content}</p>
-        )}
-      </div>
-    </motion.div>
-  )
-}
 
 const VoiceConnect = forwardRef(function VoiceConnect(
   { onAlert, mode = 'senior', onStateChange, compact = false },
@@ -79,89 +40,44 @@ const VoiceConnect = forwardRef(function VoiceConnect(
   const [transcript, setTranscript] = useState('')
   const [response, setResponse] = useState('')
   const [conversationHistory, setConversationHistory] = useState([])
-  const [textInput, setTextInput] = useState('')
 
-  const recognitionRef = useRef(null)
-  const synthRef = useRef(window.speechSynthesis)
+  const mediaRecorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const audioRef = useRef(null)
+  const audioUnlockedRef = useRef(false)
   const abortRef = useRef(false)
-  const chatEndRef = useRef(null)
 
   // Notify parent of state changes
   useEffect(() => {
     onStateChange?.(voiceState)
   }, [voiceState, onStateChange])
 
-  // Auto-scroll chat
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversationHistory, response, transcript])
-
-  // Set up speech recognition
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) return
-
-    const recognition = new SpeechRecognition()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-    recognition.maxAlternatives = 1
-
-    recognition.onresult = (event) => {
-      const result = event.results[event.results.length - 1]
-      const text = result[0].transcript
-      setTranscript(text)
-      if (result.isFinal) {
-        recognition.stop()
-        sendToHelper(text, true) // fromVoice
-      }
+  const stopAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
     }
+  }
 
-    recognition.onerror = (event) => {
-      if (event.error === 'no-speech') {
-        setVoiceState(STATES.IDLE)
-        setTranscript('')
-      } else {
-        setVoiceState(STATES.ERROR)
-      }
-    }
-
-    recognition.onend = () => {
-      if (voiceState === STATES.LISTENING) setVoiceState(STATES.THINKING)
-    }
-
-    recognitionRef.current = recognition
-  }, [])
-
-  const stripForSpeech = (text) =>
-    text
-      .replace(/[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]|[\u{2300}-\u{23FF}]/gu, '')
-      .replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1')
-      .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
-      .replace(/^#{1,6}\s+/gm, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-  const speak = useCallback((text) => {
+  const speak = useCallback(async (text) => {
+    stopAudio()
     return new Promise((resolve) => {
-      synthRef.current.cancel()
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.rate = 0.85   // slightly slower — warm, unhurried
-      utterance.pitch = 1.05  // slightly higher — friendly, not flat
-      utterance.volume = 1.0
-
-      // Pick best available voice — prefer premium/enhanced Mac voices
-      const voices = synthRef.current.getVoices()
-      const PREFERRED = ['Ava', 'Nicky', 'Allison', 'Samantha', 'Karen', 'Victoria', 'Susan']
-      const pick = PREFERRED.reduce(
-        (found, name) => found || voices.find(v => v.name.includes(name) && v.lang.startsWith('en')),
-        null
-      )
-      if (pick) utterance.voice = pick
-
-      utterance.onend = resolve
-      utterance.onerror = resolve
-      synthRef.current.speak(utterance)
+      fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
+        .then(res => res.ok ? res.blob() : null)
+        .then(blob => {
+          if (!blob) { resolve(); return }
+          const url = URL.createObjectURL(blob)
+          const audio = new Audio(url)
+          audioRef.current = audio
+          audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
+          audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
+          audio.play().catch(resolve)
+        })
+        .catch(resolve)
     })
   }, [])
 
@@ -214,7 +130,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       setResponse('') // clear live bubble — message is now in history
 
       if (fromVoice && fullResponse && !abortRef.current) {
-        await speak(stripForSpeech(fullResponse))
+        await speak(fullResponse)
       }
       setVoiceState(STATES.IDLE)
     } catch (err) {
@@ -226,41 +142,92 @@ const VoiceConnect = forwardRef(function VoiceConnect(
     }
   }
 
-  const handleButtonPress = () => {
-    synthRef.current.cancel()
+  const transcribeAudio = async (blob, mimeType) => {
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: base64, mimeType }),
+      })
+      if (!res.ok) throw new Error('Transcription failed')
+      const { transcript } = await res.json()
+      if (!transcript?.trim()) { setVoiceState(STATES.IDLE); return }
+      setTranscript(transcript)
+      await sendToHelper(transcript, true)
+    } catch (err) {
+      console.error(err)
+      setVoiceState(STATES.ERROR)
+      setResponse('Could not transcribe audio. Please try again.')
+    }
+  }
+
+  const handleButtonPress = async () => {
+    // Unlock audio on first tap — iOS Safari blocks play() after async gaps
+    if (!audioUnlockedRef.current) {
+      audioUnlockedRef.current = true
+      const a = new Audio()
+      a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+      a.play().catch(() => {})
+    }
+
+    stopAudio()
 
     if (voiceState === STATES.LISTENING) {
-      recognitionRef.current?.stop()
-      setVoiceState(STATES.IDLE)
-      setTranscript('')
+      mediaRecorderRef.current?.stop()
       return
     }
     if (voiceState === STATES.THINKING || voiceState === STATES.SPEAKING) {
       abortRef.current = true
-      synthRef.current.cancel()
+      stopAudio()
       setVoiceState(STATES.IDLE)
-      return
-    }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      setResponse('Voice is not supported in this browser. Please use Chrome or Safari.')
       return
     }
 
     setTranscript('')
     setResponse('')
     setVoiceState(STATES.LISTENING)
+
     try {
-      recognitionRef.current?.start()
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : 'audio/mp4'
+
+      const recorder = new MediaRecorder(stream, { mimeType })
+      chunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setVoiceState(STATES.THINKING)
+        const blob = new Blob(chunksRef.current, { type: mimeType })
+        chunksRef.current = []
+        if (blob.size < 500) { setVoiceState(STATES.IDLE); return }
+        await transcribeAudio(blob, mimeType)
+      }
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
     } catch {
-      recognitionRef.current?.stop()
-      setTimeout(() => recognitionRef.current?.start(), 200)
+      setVoiceState(STATES.ERROR)
+      setResponse('Could not access microphone. Please allow microphone permission and try again.')
     }
   }
 
   const clearHistory = () => {
-    synthRef.current.cancel()
+    mediaRecorderRef.current?.stop()
+    stopAudio()
     abortRef.current = true
     setConversationHistory([])
     setTranscript('')
@@ -272,7 +239,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
   useImperativeHandle(ref, () => ({
     triggerVoice: handleButtonPress,
     triggerMessage: (text) => {
-      synthRef.current.cancel()
+      stopAudio()
       abortRef.current = true
       setTranscript(text)
       setResponse('')
@@ -283,142 +250,113 @@ const VoiceConnect = forwardRef(function VoiceConnect(
     },
   }))
 
-  // ── Compact render (elder-first: big voice + chat log) ───────────────────
+  // ── Compact render (voice-first, no chat clutter) ────────────────────────
   if (compact) {
     const isVoiceBusy = voiceState === STATES.THINKING || voiceState === STATES.SPEAKING || voiceState === STATES.LISTENING
-    const isTextDisabled = isVoiceBusy
 
-    const handleTextSend = () => {
-      const text = textInput.trim()
-      if (!text || isTextDisabled) return
-      setTextInput('')
-      sendToHelper(text, false) // fromVoice = false
-    }
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault()
-        handleTextSend()
-      }
-    }
-
-    // Voice button config per state
     const voiceCfg = {
-      idle:      { bg: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800', icon: '🎙️', label: 'Tap to Speak',      pulse: false },
-      listening: { bg: 'bg-red-500',                                             icon: '⏹',  label: 'Tap to Stop',       pulse: true  },
-      thinking:  { bg: 'bg-amber-400 cursor-not-allowed',                        icon: '✨',  label: 'Sarah is thinking…', pulse: false },
-      speaking:  { bg: 'bg-emerald-500',                                         icon: '🔊',  label: 'Sarah is speaking…', pulse: false },
-      error:     { bg: 'bg-red-500 hover:bg-red-600',                            icon: '🔄',  label: 'Try again',          pulse: false },
+      idle:      { bg: '#4F46E5', shadow: 'rgba(79,70,229,0.35)',  icon: '🎙️', status: null,                  pulse: false },
+      listening: { bg: '#DC2626', shadow: 'rgba(220,38,38,0.4)',   icon: '🎙️', status: 'Listening…',          pulse: true  },
+      thinking:  { bg: '#D97706', shadow: 'rgba(217,119,6,0.35)',  icon: '✨',  status: 'Sarah is thinking…',  pulse: false },
+      speaking:  { bg: '#059669', shadow: 'rgba(5,150,105,0.35)',  icon: '🔊',  status: 'Sarah is speaking…',  pulse: false },
+      error:     { bg: '#DC2626', shadow: 'rgba(220,38,38,0.3)',   icon: '🔄',  status: 'Something went wrong', pulse: false },
     }
     const vcfg = voiceCfg[voiceState] || voiceCfg.idle
 
+    // Last thing Sarah said — shown as a single reply card
+    const lastAssistant = [...conversationHistory].reverse().find(m => m.role === 'assistant')
+    const lastUser      = [...conversationHistory].reverse().find(m => m.role === 'user')
+    const displayResponse = response || lastAssistant?.content || null
+    const displayTranscript = (transcript && voiceState === STATES.LISTENING) ? transcript : lastUser?.content || null
+
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col items-center px-4 sm:px-6 py-5 sm:py-8 bg-white">
 
-        {/* ── Chat log — top (standard chat pattern) ── */}
-        <div className="overflow-y-auto px-5 py-4 bg-white" style={{ minHeight: 220, maxHeight: 340 }}>
-          {/* Sarah greeting */}
+        {/* Instruction */}
+        <motion.h2
+          className="text-2xl font-black text-helper-navy text-center mb-2"
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        >
+          {voiceState === STATES.IDLE || voiceState === STATES.ERROR
+            ? 'Talk to Sarah'
+            : vcfg.status}
+        </motion.h2>
+        <p className="text-sm text-helper-gray-text text-center mb-6">
+          {voiceState === STATES.IDLE ? 'Press the button and speak clearly' : '\u00A0'}
+        </p>
+
+        {/* What you said */}
+        {displayTranscript && (
           <motion.div
-            className="flex justify-start mb-3"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            className="w-full mb-4 bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3"
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
           >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs mr-2.5 mt-1 shadow-md">
-              S
-            </div>
-            <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3 max-w-[78%]">
-              <p className="text-base leading-relaxed text-helper-navy">
-                Hi! I'm Sarah. Tap the big button below to talk, or type a message.
-              </p>
-            </div>
+            <p className="text-xs font-semibold text-indigo-400 mb-1 uppercase tracking-wide">You said</p>
+            <p className="text-base text-helper-navy leading-relaxed">{displayTranscript}</p>
           </motion.div>
+        )}
 
-          {conversationHistory.map((msg, i) => (
-            <ChatBubble key={i} role={msg.role} content={msg.content} />
-          ))}
-          {transcript && voiceState === STATES.LISTENING && (
-            <ChatBubble role="user" content={transcript} isLive />
-          )}
-          {voiceState === STATES.THINKING && !response && (
-            <ChatBubble role="assistant" content="" isTyping />
-          )}
-          {response && (
-            <ChatBubble
-              role="assistant"
-              content={response}
-              isLive={voiceState === STATES.SPEAKING || voiceState === STATES.THINKING}
+        {/* Sarah's reply */}
+        {(displayResponse || (voiceState === STATES.THINKING && !response)) && (
+          <motion.div
+            className="w-full mb-6 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4"
+            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          >
+            <p className="text-xs font-semibold text-gray-400 mb-1 uppercase tracking-wide">Sarah</p>
+            {voiceState === STATES.THINKING && !response ? (
+              <div className="flex gap-1.5 items-center h-5">
+                {[0,1,2].map(i => (
+                  <motion.div
+                    key={i}
+                    className="w-2 h-2 bg-gray-400 rounded-full"
+                    animate={{ opacity: [0.3,1,0.3], scale: [0.8,1.2,0.8] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-base text-helper-navy leading-relaxed">{displayResponse}</p>
+            )}
+          </motion.div>
+        )}
+
+        {/* Big round button */}
+        <div className="relative mb-4">
+          {vcfg.pulse && (
+            <motion.div
+              className="absolute rounded-full"
+              style={{ inset: -16, backgroundColor: vcfg.bg }}
+              animate={{ scale: [1, 1.55, 1], opacity: [0.4, 0, 0.4] }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
             />
           )}
-          <div ref={chatEndRef} />
-          {conversationHistory.length > 0 && voiceState === STATES.IDLE && (
-            <div className="flex justify-center mt-1">
-              <button onClick={clearHistory} className="text-xs text-gray-400 hover:text-red-400 underline">
-                Clear conversation
-              </button>
-            </div>
-          )}
+          <motion.button
+            onClick={handleButtonPress}
+            disabled={voiceState === STATES.THINKING}
+            className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full text-white flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
+            style={{
+              backgroundColor: vcfg.bg,
+              boxShadow: `0 12px 40px ${vcfg.shadow}`,
+            }}
+            animate={{ backgroundColor: vcfg.bg }}
+            transition={{ duration: 0.4 }}
+            whileHover={!isVoiceBusy || voiceState === STATES.ERROR ? { scale: 1.06 } : {}}
+            whileTap={{ scale: 0.93 }}
+          >
+            <span className="text-5xl leading-none">{vcfg.icon}</span>
+          </motion.button>
         </div>
 
-        {/* ── Bottom controls ── */}
-        <div className="border-t border-gray-100 bg-gray-50 px-5 pt-4 pb-5">
-
-          {/* Text input row */}
-          <div className="flex items-center gap-2 mb-5">
-            <input
-              type="text"
-              value={textInput}
-              onChange={e => setTextInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isTextDisabled}
-              placeholder={isVoiceBusy ? vcfg.label : 'Type a message…'}
-              className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3 text-base text-helper-navy placeholder-gray-400 outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50 transition-all"
-            />
-            <motion.button
-              onClick={handleTextSend}
-              disabled={!textInput.trim() || isTextDisabled}
-              className="flex-shrink-0 w-11 h-11 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-md hover:bg-indigo-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-              whileTap={{ scale: 0.9 }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            </motion.button>
-          </div>
-
-          {/* Big voice button — centred, unmissable */}
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              {vcfg.pulse && (
-                <motion.div
-                  className="absolute rounded-full bg-red-400"
-                  style={{ inset: -12 }}
-                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
-                />
-              )}
-              <motion.button
-                onClick={handleButtonPress}
-                disabled={voiceState === STATES.THINKING}
-                className={`relative w-20 h-20 rounded-full text-white flex flex-col items-center justify-center gap-1 shadow-2xl transition-colors ${vcfg.bg}`}
-                whileHover={voiceState === STATES.IDLE || voiceState === STATES.ERROR ? { scale: 1.07 } : {}}
-                whileTap={{ scale: 0.92 }}
-              >
-                <span className="text-3xl leading-none">{vcfg.icon}</span>
-              </motion.button>
-            </div>
-            <motion.p
-              key={vcfg.label}
-              className="mt-2.5 text-sm font-bold text-helper-navy"
-              initial={{ opacity: 0, y: 3 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18 }}
-            >
-              {vcfg.label}
-            </motion.p>
-          </div>
-
+        {/* Status dot */}
+        <div className="flex items-center gap-2">
+          <motion.div
+            className="w-2 h-2 rounded-full bg-emerald-500"
+            animate={voiceState === STATES.LISTENING ? { opacity: [1, 0.3, 1] } : { opacity: 1 }}
+            transition={{ duration: 1, repeat: Infinity }}
+          />
+          <p className="text-sm font-semibold text-helper-gray-text">
+            {voiceState === STATES.IDLE ? 'Ready to listen' : vcfg.status}
+          </p>
         </div>
 
       </div>

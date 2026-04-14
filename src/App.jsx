@@ -41,13 +41,12 @@ export default function App() {
           <span className="text-elder-lg font-black tracking-tight">Helper</span>
         </div>
 
-        <div className="flex gap-2">
+        {/* Desktop nav buttons — hidden on mobile */}
+        <div className="hidden sm:flex gap-2">
           <button
             onClick={() => setView(VIEWS.SENIOR)}
             className={`px-4 py-2 rounded-xl text-elder-sm font-semibold transition-all ${
-              view === VIEWS.SENIOR
-                ? 'bg-helper-blue text-white'
-                : 'bg-white/10 hover:bg-white/20'
+              view === VIEWS.SENIOR ? 'bg-helper-blue text-white' : 'bg-white/10 hover:bg-white/20'
             }`}
           >
             Parent View
@@ -55,9 +54,7 @@ export default function App() {
           <button
             onClick={() => setView(VIEWS.CAREGIVER)}
             className={`px-4 py-2 rounded-xl text-elder-sm font-semibold transition-all ${
-              view === VIEWS.CAREGIVER
-                ? 'bg-helper-blue text-white'
-                : 'bg-white/10 hover:bg-white/20'
+              view === VIEWS.CAREGIVER ? 'bg-helper-blue text-white' : 'bg-white/10 hover:bg-white/20'
             }`}
           >
             Dashboard
@@ -65,9 +62,7 @@ export default function App() {
           <button
             onClick={() => setView(VIEWS.SETUP)}
             className={`px-4 py-2 rounded-xl text-elder-sm font-semibold transition-all ${
-              view === VIEWS.SETUP
-                ? 'bg-helper-blue text-white'
-                : 'bg-white/10 hover:bg-white/20'
+              view === VIEWS.SETUP ? 'bg-helper-blue text-white' : 'bg-white/10 hover:bg-white/20'
             }`}
           >
             Setup
@@ -75,10 +70,35 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Main content */}
-      {view === VIEWS.SENIOR && <SeniorHome onAlert={addAlert} />}
-      {view === VIEWS.CAREGIVER && <CaregiverDashboard alerts={alerts} onAlert={addAlert} />}
-      {view === VIEWS.SETUP && <Setup />}
+      {/* Main content — extra bottom padding on mobile to clear the bottom nav */}
+      <div className="pb-0 sm:pb-0 [padding-bottom:env(safe-area-inset-bottom)]">
+        {view === VIEWS.SENIOR && <SeniorHome onAlert={addAlert} />}
+        {view === VIEWS.CAREGIVER && <CaregiverDashboard alerts={alerts} onAlert={addAlert} />}
+        {view === VIEWS.SETUP && <Setup />}
+      </div>
+
+      {/* Mobile bottom nav — hidden on sm+ */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 flex"
+           style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {[
+          { v: VIEWS.SENIOR,    icon: '🏠', label: 'Home'      },
+          { v: VIEWS.CAREGIVER, icon: '📊', label: 'Care'      },
+          { v: VIEWS.SETUP,     icon: '⚙️', label: 'Setup'     },
+        ].map(({ v, icon, label }) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 transition-colors ${
+              view === v ? 'text-indigo-600' : 'text-gray-400'
+            }`}
+          >
+            <span className="text-2xl leading-none">{icon}</span>
+            <span className="text-[10px] font-bold tracking-wide">{label}</span>
+            {view === v && <span className="absolute bottom-0 w-8 h-0.5 bg-indigo-500 rounded-full" />}
+          </button>
+        ))}
+      </nav>
+
     </div>
   )
 }

@@ -28,7 +28,156 @@ const UPCOMING = {
   ],
 }
 
+const WEATHER = {
+  location: 'San Francisco, CA',
+  temp: 68,
+  high: 73,
+  low: 57,
+  condition: 'Partly Cloudy',
+  icon: '⛅',
+  feelsLike: 65,
+}
+
+const NOTIFICATIONS = [
+  {
+    id: 1,
+    type: 'family',
+    from: 'Sarah (Daughter)',
+    avatar: '👧',
+    msg: "Hi Mom! Don't forget your 2pm appointment on Tuesday. Thinking of you, love you!",
+    time: '10 min ago',
+    unread: true,
+  },
+  {
+    id: 2,
+    type: 'government',
+    from: 'Medicare Notice',
+    avatar: '🏛️',
+    msg: 'Your annual wellness visit is due. Please schedule with Dr. Johnson before June 30th.',
+    time: '2 hrs ago',
+    unread: true,
+  },
+  {
+    id: 3,
+    type: 'community',
+    from: 'Oakwood Community',
+    avatar: '🏘️',
+    msg: 'Pool hours change from May 1st: 7am–8pm daily. Free swim for all residents aged 60+.',
+    time: 'Yesterday',
+    unread: false,
+  },
+]
+
+const NEXT_REMINDER = {
+  time: 'Tonight · 8:00 PM',
+  title: 'Metformin 500mg',
+  note: 'Take with dinner',
+  icon: '💊',
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function WeatherCard() {
+  return (
+    <motion.div
+      className="rounded-2xl overflow-hidden shadow-sm border border-sky-100"
+      style={{ background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' }}
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+    >
+      <div className="px-5 py-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-sky-600 mb-1">{WEATHER.location}</p>
+          <div className="flex items-end gap-2">
+            <span className="text-5xl font-black text-sky-900 leading-none">{WEATHER.temp}°</span>
+            <span className="text-sky-700 font-semibold text-sm mb-1">{WEATHER.condition}</span>
+          </div>
+          <p className="text-xs text-sky-600 mt-1.5 font-medium">
+            H:{WEATHER.high}°  L:{WEATHER.low}°  &nbsp;·&nbsp; Feels like {WEATHER.feelsLike}°
+          </p>
+        </div>
+        <span className="text-6xl">{WEATHER.icon}</span>
+      </div>
+    </motion.div>
+  )
+}
+
+const TYPE_STYLES = {
+  family:     { bg: 'bg-indigo-50', border: 'border-indigo-100', badge: 'bg-indigo-100 text-indigo-700', label: 'Family'     },
+  government: { bg: 'bg-blue-50',   border: 'border-blue-100',   badge: 'bg-blue-100 text-blue-700',     label: 'Official'   },
+  community:  { bg: 'bg-green-50',  border: 'border-green-100',  badge: 'bg-green-100 text-green-700',   label: 'Community'  },
+}
+
+function NotificationsCard() {
+  return (
+    <motion.div
+      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+    >
+      <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+        <span className="text-base">🔔</span>
+        <p className="font-black text-helper-navy text-sm">Notifications</p>
+        <span className="ml-auto bg-indigo-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+          {NOTIFICATIONS.filter(n => n.unread).length} new
+        </span>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {NOTIFICATIONS.map((item, i) => {
+          const s = TYPE_STYLES[item.type]
+          return (
+            <motion.div
+              key={item.id}
+              className={`px-5 py-4 flex items-start gap-3 ${item.unread ? s.bg : ''} transition-colors cursor-pointer`}
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.12 + i * 0.04 }}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0 border ${s.border} ${s.bg}`}>
+                {item.avatar}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="font-bold text-helper-navy text-sm leading-tight">{item.from}</p>
+                  {item.unread && <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />}
+                  <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${s.badge}`}>{s.label}</span>
+                </div>
+                <p className="text-sm text-gray-600 leading-snug">{item.msg}</p>
+                <p className="text-xs text-gray-400 mt-1">{item.time}</p>
+              </div>
+            </motion.div>
+          )
+        })}
+      </div>
+    </motion.div>
+  )
+}
+
+function ReminderCard() {
+  const [dismissed, setDismissed] = useState(false)
+  if (dismissed) return null
+  return (
+    <motion.div
+      className="rounded-2xl border border-amber-200 overflow-hidden shadow-sm"
+      style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' }}
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+    >
+      <div className="px-5 py-4 flex items-center gap-4">
+        <div className="w-11 h-11 rounded-full bg-amber-400 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+          {NEXT_REMINDER.icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide mb-0.5">Next Reminder</p>
+          <p className="font-black text-amber-900 text-sm leading-tight">{NEXT_REMINDER.title}</p>
+          <p className="text-xs text-amber-700 mt-0.5">{NEXT_REMINDER.time} &nbsp;·&nbsp; {NEXT_REMINDER.note}</p>
+        </div>
+        <button
+          onClick={() => setDismissed(true)}
+          className="flex-shrink-0 text-amber-400 hover:text-amber-600 transition-colors text-lg leading-none"
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+    </motion.div>
+  )
+}
 
 function TabBar({ tab, setTab }) {
   const tabs = [
@@ -38,16 +187,16 @@ function TabBar({ tab, setTab }) {
   ]
   return (
     <div className="bg-white border-b border-gray-200 sticky top-[60px] z-40">
-      <div className="max-w-7xl mx-auto px-8 flex">
+      <div className="max-w-7xl mx-auto px-2 sm:px-8 flex">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`relative px-7 py-4 font-semibold text-sm transition-colors ${
+            className={`relative flex-1 sm:flex-none px-3 sm:px-7 py-3 sm:py-4 font-semibold text-xs sm:text-sm transition-colors ${
               tab === t.id ? 'text-helper-blue' : 'text-helper-gray-text hover:text-helper-navy'
             }`}
           >
-            <span className="mr-1.5">{t.icon}</span>{t.label}
+            <span className="mr-1">{t.icon}</span>{t.label}
             {tab === t.id && (
               <motion.div
                 layoutId="tab-indicator"
@@ -219,9 +368,9 @@ function UpcomingTab() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function SeniorHome({ onAlert }) {
-  const [tab, setTab]               = useState('talk')
-  const [showEmergency, setShowEmergency] = useState(false)
-  const [emergencySent, setEmergencySent] = useState(false)
+  const [tab, setTab]           = useState('talk')
+  const [sosConfirm, setSosConfirm] = useState(false)
+  const [sosSent, setSosSent]   = useState(false)
   const vcRef = useRef(null)
 
   const handleQuickAction = (message) => {
@@ -229,24 +378,18 @@ export default function SeniorHome({ onAlert }) {
     setTimeout(() => vcRef.current?.triggerMessage(message), 80)
   }
 
-  const handleEmergency = () => {
-    if (emergencySent) return
-    setEmergencySent(true)
-    onAlert?.({
-      type: 'high',
-      title: '🚨 EMERGENCY ALERT',
-      msg: 'Your parent pressed the emergency button. Contacting caregivers now.',
-      icon: '🚨',
-    })
-    setTimeout(() => setShowEmergency(false), 3000)
-    setTimeout(() => setEmergencySent(false), 6000)
+  const handleSos = () => {
+    if (sosSent) return
+    setSosSent(true)
+    onAlert?.({ type: 'high', title: '🚨 EMERGENCY ALERT', msg: 'Emergency button pressed. Contacting caregivers now.', icon: '🚨' })
+    setTimeout(() => { setSosConfirm(false); setSosSent(false) }, 4000)
   }
 
   return (
     <div className="min-h-screen bg-helper-gray-light">
       <TabBar tab={tab} setTab={setTab} />
 
-      <div className="max-w-2xl mx-auto px-4 pt-4 pb-6">
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-24 sm:pb-6">
         <AnimatePresence mode="wait">
 
           {/* ── TALK TAB ─────────────────────────────────────────────── */}
@@ -274,7 +417,44 @@ export default function SeniorHome({ onAlert }) {
                     <p className="font-black text-helper-navy text-base leading-tight">Sarah</p>
                     <p className="text-xs text-emerald-500 font-semibold">● Online</p>
                   </div>
+                  <button
+                    onClick={() => setSosConfirm(v => !v)}
+                    className="ml-auto w-10 h-10 rounded-full bg-red-600 text-white flex flex-col items-center justify-center shadow-md hover:bg-red-700 active:scale-95 transition-all"
+                  >
+                    <span className="text-[10px] font-black leading-none tracking-wide">SOS</span>
+                  </button>
                 </div>
+
+                {/* SOS confirm panel */}
+                <AnimatePresence>
+                  {sosConfirm && (
+                    <motion.div
+                      className="px-5 py-4 bg-red-50 border-b border-red-100"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <p className="font-black text-red-600 text-sm mb-0.5">Send emergency alert?</p>
+                      <p className="text-xs text-gray-500 mb-3">Your caregivers will be notified immediately.</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSos}
+                          disabled={sosSent}
+                          className="flex-1 bg-red-600 text-white text-sm font-bold py-2 rounded-xl disabled:opacity-60 transition-opacity"
+                        >
+                          {sosSent ? 'Sent ✓' : 'Yes, Send'}
+                        </button>
+                        <button
+                          onClick={() => setSosConfirm(false)}
+                          className="flex-1 bg-white text-gray-700 text-sm font-bold py-2 rounded-xl border border-gray-200"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Chat + controls */}
                 <VoiceConnect
@@ -284,48 +464,13 @@ export default function SeniorHome({ onAlert }) {
                   compact
                 />
 
-                {/* Emergency */}
-                <div className="px-6 pb-6 pt-2">
-                    <AnimatePresence mode="wait">
-                      {!showEmergency ? (
-                        <motion.button
-                          key="emer-btn"
-                          onClick={() => setShowEmergency(true)}
-                          className="btn-emergency w-full"
-                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                        >
-                          <span className="text-3xl">🆘</span>
-                          <span>Emergency Help</span>
-                        </motion.button>
-                      ) : (
-                        <motion.div
-                          key="emer-confirm"
-                          className="space-y-3"
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                        >
-                          <div className="card border-4 border-helper-red text-center py-4 px-5">
-                            <p className="font-black text-helper-red text-base">Send emergency alert?</p>
-                            <p className="text-xs text-helper-gray-text mt-1">Your caregivers will be notified immediately</p>
-                          </div>
-                          <button
-                            onClick={handleEmergency}
-                            disabled={emergencySent}
-                            className={`btn-emergency w-full ${emergencySent ? 'opacity-70 cursor-not-allowed' : ''}`}
-                          >
-                            <span className="text-2xl">{emergencySent ? '✅' : '🆘'}</span>
-                            <span>{emergencySent ? 'Alert Sent!' : 'YES — Send Alert'}</span>
-                          </button>
-                          {!emergencySent && (
-                            <button onClick={() => setShowEmergency(false)} className="btn-outline w-full">Cancel</button>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+              </div>
 
+              {/* Weather + News + Reminder */}
+              <div className="mt-4 space-y-3">
+                <ReminderCard />
+                <WeatherCard />
+                <NotificationsCard />
               </div>
             </motion.div>
           )}

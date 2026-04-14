@@ -1,17 +1,83 @@
 import express from 'express'
 import cors from 'cors'
+import OpenAI from 'openai'
 import { createVoiceChatStream } from './claude.js'
 import 'dotenv/config'
 
 const app = express()
 const PORT = process.env.PORT || 3001
 
-app.use(cors({ origin: 'http://localhost:5173' }))
-app.use(express.json())
+app.use(cors({ origin: /localhost/ }))
+app.use(express.json({ limit: '10mb' }))
 
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', model: 'claude-sonnet-4-6' })
+})
+
+// Transcribe audio with Whisper
+app.post('/api/transcribe', async (req, res) => {
+  const { audio, mimeType } = req.body
+  if (!audio) return res.status(400).json({ error: 'No audio provided' })
+
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(500).json({ error: 'OPENAI_API_KEY not set in .env' })
+  }
+
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    const buffer = Buffer.from(audio, 'base64')
+    const ext = mimeType?.includes('mp4') ? 'm4a' : 'webm'
+    const file = new File([buffer], `audio.${ext}`, { type: mimeType || 'audio/webm' })
+    const result = await openai.audio.transcriptions.create({ file, model: 'whisper-1', language: 'en' })
+    res.json({ transcript: result.text })
+  } catch (err) {
+    console.error('[transcribe error]', err.message)
+    res.status(500).json({ error: 'Transcription failed' })
+  }
+})
+
+// Text-to-speech with ElevenLabs
+app.post('/api/speak', async (req, res) => {
+  const { text } = req.body
+  if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
+
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return res.status(500).json({ error: 'ELEVENLABS_API_KEY not set in .env' })
+  }
+
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
+
+  try {
+    const elevenRes = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: { stability: 0.75, similarity_boost: 0.75 },
+        }),
+      }
+    )
+
+    if (!elevenRes.ok) {
+      const err = await elevenRes.text()
+      console.error('[speak error]', err)
+      return res.status(500).json({ error: 'ElevenLabs error' })
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg')
+    const buf = await elevenRes.arrayBuffer()
+    res.send(Buffer.from(buf))
+  } catch (err) {
+    console.error('[speak error]', err.message)
+    res.status(500).json({ error: 'TTS failed' })
+  }
 })
 
 // Voice chat endpoint — streams Claude's response via SSE
