@@ -57,6 +57,20 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       audioRef.current.pause()
       audioRef.current = null
     }
+    window.speechSynthesis?.cancel()
+  }
+
+  const speakWithBrowser = (text, resolve) => {
+    const synth = window.speechSynthesis
+    if (!synth) { resolve(); return }
+    synth.cancel()
+    const clean = text.replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1').replace(/\s+/g, ' ').trim()
+    const utterance = new SpeechSynthesisUtterance(clean)
+    utterance.rate = 0.85
+    utterance.pitch = 1.05
+    utterance.onend = resolve
+    utterance.onerror = resolve
+    synth.speak(utterance)
   }
 
   const speak = useCallback(async (text) => {
@@ -69,15 +83,15 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       })
         .then(res => res.ok ? res.blob() : null)
         .then(blob => {
-          if (!blob) { resolve(); return }
+          if (!blob) { speakWithBrowser(text, resolve); return }
           const url = URL.createObjectURL(blob)
           const audio = new Audio(url)
           audioRef.current = audio
           audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
           audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-          audio.play().catch(resolve)
+          audio.play().catch(() => speakWithBrowser(text, resolve))
         })
-        .catch(resolve)
+        .catch(() => speakWithBrowser(text, resolve))
     })
   }, [])
 
