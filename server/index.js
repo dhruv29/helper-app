@@ -111,7 +111,11 @@ app.post('/api/voice-chat', async (req, res) => {
 })
 
 
-app.listen(PORT, () => {
-  console.log(`\n🛡️  Helper API running on http://localhost:${PORT}`)
-  console.log(`   API Key: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Missing — add ANTHROPIC_API_KEY to .env'}`)
-})
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`\n🛡️  Helper API running on http://localhost:${PORT}`)
+    console.log(`   API Key: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Missing — add ANTHROPIC_API_KEY to .env'}`)
+  })
+}
+
+export default app
