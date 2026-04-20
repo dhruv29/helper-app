@@ -33,7 +33,7 @@ function saveToLocalStorage(history) {
 
 
 const VoiceConnect = forwardRef(function VoiceConnect(
-  { onAlert, mode = 'senior', onStateChange, compact = false },
+  { onAlert, mode = 'senior', onStateChange, onResponse, onTranscript, compact = false, headless = false },
   ref
 ) {
   const [voiceState, setVoiceState] = useState(STATES.IDLE)
@@ -47,10 +47,9 @@ const VoiceConnect = forwardRef(function VoiceConnect(
   const audioUnlockedRef = useRef(false)
   const abortRef = useRef(false)
 
-  // Notify parent of state changes
-  useEffect(() => {
-    onStateChange?.(voiceState)
-  }, [voiceState, onStateChange])
+  useEffect(() => { onStateChange?.(voiceState) }, [voiceState, onStateChange])
+  useEffect(() => { onResponse?.(response) }, [response, onResponse])
+  useEffect(() => { onTranscript?.(transcript) }, [transcript, onTranscript])
 
   const stopAudio = () => {
     if (audioRef.current) {
@@ -263,6 +262,8 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       }, 80)
     },
   }))
+
+  if (headless) return null
 
   // ── Compact render (voice-first, no chat clutter) ────────────────────────
   if (compact) {

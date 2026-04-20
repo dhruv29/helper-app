@@ -2,6 +2,13 @@ import express from 'express'
 import cors from 'cors'
 import OpenAI from 'openai'
 import { createVoiceChatStream } from './claude.js'
+import {
+  getAlerts, createAlert, resolveAlert,
+  getMedications, markMedicationTaken,
+  getTodayWellness, upsertWellness,
+  getLatestHandoff, upsertHandoff,
+  startConversation, endConversation, saveMessage, getMessages,
+} from './db.js'
 import 'dotenv/config'
 
 const app = express()
@@ -123,6 +130,141 @@ app.post('/api/voice-chat', async (req, res) => {
   }
 })
 
+
+// ── Database REST routes ────────────────────────────────────────────────────────
+
+const DEMO_SENIOR = '00000000-0000-0000-0000-000000000001'
+
+// Alerts
+app.get('/api/alerts', async (req, res) => {
+  try {
+    const seniorId = req.query.senior_id || DEMO_SENIOR
+    const data = await getAlerts(seniorId)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/alerts', async (req, res) => {
+  try {
+    const { senior_id = DEMO_SENIOR, ...rest } = req.body
+    const data = await createAlert({ senior_id, ...rest })
+    res.status(201).json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/api/alerts/:id/resolve', async (req, res) => {
+  try {
+    const data = await resolveAlert(req.params.id)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Medications
+app.get('/api/medications', async (req, res) => {
+  try {
+    const seniorId = req.query.senior_id || DEMO_SENIOR
+    const data = await getMedications(seniorId)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/api/medications/:id/taken', async (req, res) => {
+  try {
+    const data = await markMedicationTaken(req.params.id, req.body.taken ?? true)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Wellness
+app.get('/api/wellness', async (req, res) => {
+  try {
+    const seniorId = req.query.senior_id || DEMO_SENIOR
+    const data = await getTodayWellness(seniorId)
+    res.json(data ?? {})
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.put('/api/wellness', async (req, res) => {
+  try {
+    const { senior_id = DEMO_SENIOR, ...scores } = req.body
+    const data = await upsertWellness(senior_id, scores)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Handoffs
+app.get('/api/handoffs/latest', async (req, res) => {
+  try {
+    const seniorId = req.query.senior_id || DEMO_SENIOR
+    const data = await getLatestHandoff(seniorId)
+    res.json(data ?? {})
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/handoffs', async (req, res) => {
+  try {
+    const { senior_id = DEMO_SENIOR, ...rest } = req.body
+    const data = await upsertHandoff(senior_id, rest)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Conversations
+app.post('/api/conversations', async (req, res) => {
+  try {
+    const seniorId = req.body.senior_id || DEMO_SENIOR
+    const data = await startConversation(seniorId)
+    res.status(201).json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.patch('/api/conversations/:id/end', async (req, res) => {
+  try {
+    const data = await endConversation(req.params.id, req.body)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/conversations/:id/messages', async (req, res) => {
+  try {
+    const data = await getMessages(req.params.id)
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.post('/api/conversations/:id/messages', async (req, res) => {
+  try {
+    const { role, content } = req.body
+    const data = await saveMessage(req.params.id, role, content)
+    res.status(201).json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {

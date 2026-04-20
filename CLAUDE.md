@@ -1,0 +1,100 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+# Start both frontend and backend together (recommended)
+npm run dev
+
+# Start individually
+npm run client     # Vite frontend on https://localhost:5173 (HTTPS required for mic)
+npm run server     # Express API on http://localhost:3000
+
+# Build for production
+npm run build
+```
+
+There are no tests in this project.
+
+## Environment
+
+Copy the keys from `.env` — required keys:
+- `ANTHROPIC_API_KEY` — Claude (voice chat)
+- `OPENAI_API_KEY` — Whisper transcription
+- `PORT` — defaults to 3001 if unset (`.env` sets it to 3000)
+
+Optional TTS (falls back to browser `speechSynthesis` if unset):
+- `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID`
+- `FISH_AUDIO_API_KEY` / `FISH_AUDIO_VOICE_ID`
+- `TTS_PROVIDER=elevenlabs|fish` — override auto-selection
+
+Supabase (optional — app works with mock data if unset):
+- `SUPABASE_URL` — project URL from Supabase dashboard → Project Settings → API
+- `SUPABASE_SERVICE_KEY` — service_role secret key (bypasses RLS, server-only)
+
+To set up the database: run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor. Seed data (demo senior Margaret + caregiver Sarah) is included in the migration.
+
+## Architecture
+
+This is a fullstack eldercare assistant. The frontend is a React SPA; the backend is an Express server that proxies to Anthropic, OpenAI, and TTS providers. Vite proxies `/api/*` to `localhost:3000` in dev. In production (Vercel), `api/[...path].js` is the serverless entry point that re-exports the Express app.
+
+### Data flow for a voice interaction
+
+1. User presses mic button → `VoiceConnect` records audio via `MediaRecorder`
+2. Audio blob is base64-encoded and POSTed to `/api/transcribe` → OpenAI Whisper returns text
+3. Transcript + conversation history is sent to `/api/voice-chat` → streams Claude response via SSE
+4. `server/claude.js` scans the user message for scam/emergency keywords before streaming; if detected, emits an `alert` SSE event first
+5. The streamed text response is POSTed to `/api/speak` → returns MP3 audio (ElevenLabs or Fish Audio); falls back to browser TTS if no key
+6. Completed conversation is saved to `localStorage` under `helper_history` (max 30 days)
+
+### Views / pages
+
+`App.jsx` owns three top-level views toggled by a `view` state and a shared `alerts` array that flows down as props:
+
+| View | File | Purpose |
+|------|------|---------|
+| `senior` | `SeniorHome.jsx` | Elder-facing: Talk to Sarah (VoiceConnect), conversation history, upcoming meds/appointments |
+| `caregiver` | `CaregiverDashboard.jsx` | Caregiver-facing: Overview, Health, Finance, Alerts tabs; dark glassmorphism theme |
+| `setup` | `Setup.jsx` | Profile config stored in `localStorage` under `helper_profile` |
+
+Alerts originate either from `server/claude.js` keyword detection (emitted via SSE → `VoiceConnect` → `onAlert` prop) or from the SOS button in `SeniorHome`.
+
+### Key component: `VoiceConnect`
+
+`src/components/VoiceConnect.jsx` is a `forwardRef` component exposing two imperative handles:
+- `triggerVoice()` — starts mic recording
+- `triggerMessage(text)` — sends a text message programmatically (used by quick-action pills)
+
+It runs a state machine: `idle → listening → thinking → speaking → idle` (or `error`). In `compact` mode (used inside `SeniorHome`) it renders a minimal button + reply card; in full mode it renders the large button UI.
+
+### Claude prompts
+
+`server/claude.js` has two system prompts:
+- `SYSTEM_SENIOR` — Sarah persona, warm companion for the elder; short responses, no special characters
+- `SYSTEM_CAREGIVER` — practical eldercare advisor for the family member
+
+Mode is selected by the `mode` field in the `/api/voice-chat` request body (`'senior'` or `'caregiver'`).
+
+### Styling
+
+Tailwind with custom tokens in `tailwind.config.js`:
+- `elder-sm/base/lg/xl/2xl` — large accessible font sizes
+- `helper-navy/blue/green/red/amber` — brand colors
+- `helper-gray-light/mid/gray-text` — neutral scale
+
+`CaregiverDashboard` uses inline design tokens (`C` object at top of file) with warm cream palette (`#EDE8DF` / `#1C1917`). It loads real data from the Express API on mount (alerts, medications, wellness, handoff) and falls back to the mock constants if Supabase is not configured.
+
+### Backend data layer
+
+`server/db.js` is the Supabase data-access module — all DB calls go through it. `src/lib/api.js` is the frontend wrapper around the Express REST endpoints.
+
+REST routes added to `server/index.js`:
+- `GET /api/alerts` · `POST /api/alerts` · `PATCH /api/alerts/:id/resolve`
+- `GET /api/medications` · `PATCH /api/medications/:id/taken`
+- `GET|PUT /api/wellness`
+- `GET /api/handoffs/latest` · `POST /api/handoffs`
+- `POST /api/conversations` · `PATCH /api/conversations/:id/end` · `GET|POST /api/conversations/:id/messages`
+
+All routes default to the demo senior UUID `00000000-0000-0000-0000-000000000001` when `senior_id` is not passed.
