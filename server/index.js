@@ -8,6 +8,7 @@ import {
   getTodayWellness, upsertWellness,
   getLatestHandoff, upsertHandoff,
   startConversation, endConversation, saveMessage, getMessages,
+  upsertSenior, upsertCaregiver, syncMedications,
 } from './db.js'
 import 'dotenv/config'
 
@@ -134,6 +135,26 @@ app.post('/api/voice-chat', async (req, res) => {
 // ── Database REST routes ────────────────────────────────────────────────────────
 
 const DEMO_SENIOR = '00000000-0000-0000-0000-000000000001'
+
+// Setup — create/update senior + caregiver + medications, return IDs
+app.post('/api/setup', async (req, res) => {
+  try {
+    const { seniorId, caregiverId, parentName, parentAge, parentCity, healthNotes, interests,
+            caregiverName, relationship, emergencyName, emergencyPhone, medications } = req.body
+    const senior = await upsertSenior({
+      id: seniorId || undefined,
+      name: parentName, age: parentAge, city: parentCity, healthNotes, interests,
+    })
+    const caregiver = await upsertCaregiver({
+      id: caregiverId || undefined,
+      name: caregiverName, relationship, seniorId: senior.id, emergencyName, emergencyPhone,
+    })
+    if (medications) await syncMedications(senior.id, medications)
+    res.json({ seniorId: senior.id, caregiverId: caregiver.id })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 // Alerts
 app.get('/api/alerts', async (req, res) => {

@@ -17,6 +17,42 @@ export async function getSenior(id) {
   return data
 }
 
+export async function upsertSenior({ id, name, age, city, healthNotes, interests }) {
+  const row = {
+    name,
+    age: age ? parseInt(age) : null,
+    city: city || null,
+    health_notes: healthNotes || null,
+    interests: interests?.length ? interests : null,
+  }
+  if (id) row.id = id
+  const { data, error } = await db
+    .from('seniors')
+    .upsert(row, { onConflict: 'id' })
+    .select('id')
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function upsertCaregiver({ id, name, relationship, seniorId, emergencyName, emergencyPhone }) {
+  const row = {
+    name,
+    relationship: relationship || null,
+    senior_id: seniorId,
+    emergency_name: emergencyName || null,
+    emergency_phone: emergencyPhone || null,
+  }
+  if (id) row.id = id
+  const { data, error } = await db
+    .from('caregivers')
+    .upsert(row, { onConflict: 'id' })
+    .select('id')
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ── Alerts ─────────────────────────────────────────────────────────────────────
 
 export async function getAlerts(seniorId, { limit = 50, resolved = false } = {}) {
@@ -92,6 +128,19 @@ export async function getMessages(conversationId) {
 }
 
 // ── Medications ────────────────────────────────────────────────────────────────
+
+export async function syncMedications(seniorId, medications) {
+  // Delete all existing and re-insert so additions/removals are handled cleanly
+  await db.from('medications').delete().eq('senior_id', seniorId)
+  if (!medications.length) return
+  const rows = medications
+    .filter(m => m.name?.trim())
+    .map(m => ({ senior_id: seniorId, name: m.name.trim(), dose: m.dose || null, schedule: m.schedule || 'Morning', taken_today: false }))
+  if (rows.length) {
+    const { error } = await db.from('medications').insert(rows)
+    if (error) throw error
+  }
+}
 
 export async function getMedications(seniorId) {
   const { data, error } = await db

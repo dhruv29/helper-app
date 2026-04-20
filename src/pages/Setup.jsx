@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Logo } from '../components/Logo'
+import { api } from '../lib/api.js'
 
 // ── Shared field primitives ────────────────────────────────────────────────────
 
@@ -188,6 +190,79 @@ function StepInterests({ data, set }) {
   )
 }
 
+function StepMedications({ data, set }) {
+  const meds = data.medications || []
+
+  const addMed = () => set('medications', [...meds, { name: '', dose: '', schedule: 'Morning' }])
+  const removeMed = (i) => set('medications', meds.filter((_, idx) => idx !== i))
+  const updateMed = (i, field, val) => set('medications', meds.map((m, idx) => idx === i ? { ...m, [field]: val } : m))
+
+  const SCHEDULES = ['Morning', 'Afternoon', 'Evening', 'Morning, Evening', 'Morning, Afternoon, Evening']
+
+  return (
+    <div>
+      <h2 className="font-lora text-[28px] font-normal leading-snug mb-1" style={{ color: '#1C1917' }}>
+        Medications
+      </h2>
+      <p className="text-[15px] mb-5" style={{ color: '#7A7269' }}>
+        Helper will remind {data.parentName || 'your parent'} and let you know when they've taken them.
+      </p>
+
+      <div className="space-y-3 mb-4">
+        {meds.map((med, i) => (
+          <div key={i} className="p-4 rounded-xl" style={{ background: '#F0EBE2' }}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#8A8279' }}>Medication {i + 1}</p>
+              <button onClick={() => removeMed(i)}
+                className="text-xs px-2 py-1 rounded-lg transition-all"
+                style={{ color: '#C0392B', background: 'rgba(192,57,43,.08)' }}>
+                Remove
+              </button>
+            </div>
+            <div className="flex gap-2 mb-2">
+              <div className="flex-1">
+                <input
+                  value={med.name} onChange={e => updateMed(i, 'name', e.target.value)}
+                  placeholder="e.g. Metformin"
+                  className="w-full text-[15px] rounded-xl px-3 py-2.5 outline-none"
+                  style={{ background: '#FBF8F4', border: '1.5px solid #1C1917', fontFamily: 'DM Sans, sans-serif', color: '#1C1917' }}
+                />
+              </div>
+              <div style={{ width: 90 }}>
+                <input
+                  value={med.dose} onChange={e => updateMed(i, 'dose', e.target.value)}
+                  placeholder="500mg"
+                  className="w-full text-[15px] rounded-xl px-3 py-2.5 outline-none"
+                  style={{ background: '#FBF8F4', border: '1.5px solid #1C1917', fontFamily: 'DM Sans, sans-serif', color: '#1C1917' }}
+                />
+              </div>
+            </div>
+            <select
+              value={med.schedule} onChange={e => updateMed(i, 'schedule', e.target.value)}
+              className="w-full text-[14px] rounded-xl px-3 py-2.5 outline-none"
+              style={{ background: '#FBF8F4', border: '1.5px solid transparent', fontFamily: 'DM Sans, sans-serif', color: '#1C1917' }}
+            >
+              {SCHEDULES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        ))}
+      </div>
+
+      <button onClick={addMed}
+        className="w-full py-3 rounded-xl text-sm font-medium transition-all"
+        style={{ border: '1.5px dashed #C8C0B4', color: '#6B6560', background: 'transparent', fontFamily: 'DM Sans, sans-serif' }}>
+        + Add medication
+      </button>
+
+      {meds.length === 0 && (
+        <p className="text-center text-sm mt-4" style={{ color: '#A09890', fontFamily: 'DM Sans, sans-serif' }}>
+          No medications yet — you can add them anytime.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function StepEmergency({ data, set }) {
   return (
     <div>
@@ -259,36 +334,46 @@ function StepDone({ data, onDone }) {
 
 // ── Main onboarding component ──────────────────────────────────────────────────
 
-export default function Setup({ onDone }) {
+export default function Setup({ onDone, existingProfile }) {
   const [step, setStep] = useState(0)
-  const [data, setData] = useState({
+  const [data, setData] = useState(existingProfile ?? {
     caregiverName: '',
     relationship: '',
-    parentName: 'Margaret',
-    parentAge: '78',
-    parentCity: 'Montclair, NJ',
+    parentName: '',
+    parentAge: '',
+    parentCity: '',
     healthNotes: '',
     interests: [],
     extraInterests: '',
+    medications: [],
     emergencyName: '',
     emergencyPhone: '',
   })
 
-  const TOTAL = 4
+  useEffect(() => {
+    if (!existingProfile?.seniorId) return
+    api.medications.list(existingProfile.seniorId).then(meds => {
+      if (meds?.length) {
+        set('medications', meds.map(m => ({ id: m.id, name: m.name, dose: m.dose || '', schedule: m.schedule || 'Morning' })))
+      }
+    }).catch(() => {})
+  }, [existingProfile?.seniorId])
+
+  const TOTAL = 5
 
   const set = (k, v) => setData(p => ({ ...p, [k]: v }))
 
   const handleDone = (result) => {
-    localStorage.setItem('helper_profile', JSON.stringify(result))
     onDone?.(result)
   }
 
   const steps = [
-    <StepWelcome  key="s0" data={data} set={set} />,
-    <StepParent   key="s1" data={data} set={set} />,
-    <StepInterests key="s2" data={data} set={set} />,
-    <StepEmergency key="s3" data={data} set={set} />,
-    <StepDone     key="s4" data={data} onDone={handleDone} />,
+    <StepWelcome     key="s0" data={data} set={set} />,
+    <StepParent      key="s1" data={data} set={set} />,
+    <StepInterests   key="s2" data={data} set={set} />,
+    <StepMedications key="s3" data={data} set={set} />,
+    <StepEmergency   key="s4" data={data} set={set} />,
+    <StepDone        key="s5" data={data} onDone={handleDone} />,
   ]
 
   return (
@@ -296,11 +381,32 @@ export default function Setup({ onDone }) {
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 sm:px-10 pt-6">
-        <p className="font-lora text-xl font-medium" style={{ color: '#1C1917' }}>helper</p>
-        <p className="text-sm" style={{ color: '#A09890', fontFamily: 'DM Sans, sans-serif' }}>
-          {step < TOTAL ? `${step + 1} of ${TOTAL}` : 'All set'}
-        </p>
+        <Logo size="md" />
+        <div className="flex items-center gap-4">
+          {existingProfile?.parentName && (
+            <button
+              onClick={() => onDone?.({ ...existingProfile, view: 'caregiver', _cancel: true })}
+              className="text-sm transition-colors"
+              style={{ color: '#A09890', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+            >← Back to dashboard</button>
+          )}
+          <p className="text-sm" style={{ color: '#A09890', fontFamily: 'DM Sans, sans-serif' }}>
+            {step < TOTAL ? `${step + 1} of ${TOTAL}` : 'All set'}
+          </p>
+        </div>
       </div>
+
+      {/* Existing profile banner */}
+      {existingProfile?.parentName && step < TOTAL && (
+        <div className="mx-6 sm:mx-10 mt-4 px-4 py-3 rounded-xl flex items-center gap-3"
+          style={{ background: 'rgba(28,25,23,.06)', border: '1px solid rgba(28,25,23,.1)' }}>
+          <span className="text-lg">👤</span>
+          <p className="text-sm flex-1" style={{ color: '#6B6560', fontFamily: 'DM Sans, sans-serif' }}>
+            Currently enrolled: <strong style={{ color: '#1C1917' }}>{existingProfile.parentName}</strong>
+          </p>
+          <p className="text-xs" style={{ color: '#A09890', fontFamily: 'DM Sans, sans-serif' }}>Editing</p>
+        </div>
+      )}
 
       {/* Progress bar */}
       {step < TOTAL && (

@@ -4,8 +4,6 @@ import { api } from '../lib/api.js'
 
 // ── Data ───────────────────────────────────────────────────────────────────────
 
-const PARENT = 'Margaret'
-
 const MEDICATIONS = [
   { id: 1, name: 'Metformin 500mg',   time: '8:00 AM',  taken: true,  takenAt: '8:12 AM',  note: 'With breakfast' },
   { id: 2, name: 'Lisinopril 10mg',   time: '12:00 PM', taken: true,  takenAt: '12:03 PM', note: 'With lunch'      },
@@ -33,23 +31,26 @@ const TRANSACTIONS = [
 ]
 
 const SCAM     = { today: 1, month: 7, saved: '$2,350' }
-const ACTIVITY = {
-  lastSeen: '2 hours ago', sessions: 3, weeklyAvg: 4.2, streak: 8,
-  weekBars: [3, 2, 4, 1, 3, 4, 3],
-  timeline: [
-    { icon: '☀️', label: `Morning check-in — ${PARENT} was in good spirits`, time: '8:42 AM', bg: '#EEF5F2' },
-    { icon: '💊', label: 'Medication reminder acknowledged',                  time: '9:01 AM', bg: '#EEF1F8' },
-    { icon: '📞', label: `Spoke for ~18 min — discussed the garden`,          time: '2:15 PM', bg: '#FDF6EC' },
-    { icon: '🛡️', label: 'IRS scam call intercepted and blocked',             time: '11:24 AM', bg: '#FEF2F2' },
-  ],
-}
 const APPOINTMENTS = [
   { title: 'Dr. Johnson — Primary Care', date: 'Tue, Apr 15', time: '2:00 PM', icon: '🩺' },
   { title: 'Blood Panel Lab Work',        date: 'Thu, Apr 17', time: '9:00 AM', icon: '🔬' },
 ]
-const HANDOFF = `${PARENT} had a steady day. She mentioned her hip a few times in the morning but her mood lifted by the afternoon. She enjoyed talking about the garden — the tomatoes are coming in. No concerns worth worrying about tonight. You can put it down. I've got her. Sleep.`
 const WELLNESS_SCORE = 92
-const INSIGHT = `${PARENT} had a great morning — she asked about her bridge club and mentioned feeling well-rested. Medication adherence is on a 7-day streak. Watch the evening Atorvastatin dose.`
+
+const makeActivity = (name) => ({
+  lastSeen: '2 hours ago', sessions: 3, weeklyAvg: 4.2, streak: 8,
+  weekBars: [3, 2, 4, 1, 3, 4, 3],
+  timeline: [
+    { icon: '☀️', label: `Morning check-in — ${name} was in good spirits`, time: '8:42 AM', bg: '#EEF5F2' },
+    { icon: '💊', label: 'Medication reminder acknowledged',                time: '9:01 AM', bg: '#EEF1F8' },
+    { icon: '📞', label: `Spoke for ~18 min — discussed the garden`,        time: '2:15 PM', bg: '#FDF6EC' },
+    { icon: '🛡️', label: 'IRS scam call intercepted and blocked',           time: '11:24 AM', bg: '#FEF2F2' },
+  ],
+})
+const makeHandoff = (name) =>
+  `${name} had a steady day. They mentioned their hip a few times in the morning but their mood lifted by the afternoon. They enjoyed talking about the garden — the tomatoes are coming in. No concerns worth worrying about tonight. You can put it down. I've got them. Sleep.`
+const makeInsight = (name) =>
+  `${name} had a great morning — they asked about their bridge club and mentioned feeling well-rested. Medication adherence is on a 7-day streak. Watch the evening Atorvastatin dose.`
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 
@@ -228,7 +229,7 @@ function SendMessageModal({ parentName, onClose }) {
   )
 }
 
-function OverviewTab({ alerts, medications, wellness, handoff }) {
+function OverviewTab({ alerts, medications, wellness, handoff, parentName, activity }) {
   const taken       = medications.filter(m => m.taken).length
   const total       = medications.length
   const urgentAlerts = alerts.filter(a => a.type === 'high')
@@ -245,9 +246,9 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
               Today · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </p>
             <h2 className="font-lora text-2xl font-medium leading-tight" style={{ color: C.ink }}>
-              {PARENT} is doing well
+              {parentName} is doing well
             </h2>
-            <p className="text-xs mt-1" style={{ color: C.inkMuted }}>Active {ACTIVITY.lastSeen}</p>
+            <p className="text-xs mt-1" style={{ color: C.inkMuted }}>Active {activity.lastSeen}</p>
           </div>
           <Badge color="sage">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
@@ -258,8 +259,8 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
           {[
             { label: 'Meds',     value: `${taken}/${total}`, sub: 'taken',    warn: taken < total },
             { label: 'Blocked',  value: SCAM.today,          sub: 'scams',    warn: false         },
-            { label: 'Sessions', value: ACTIVITY.sessions,   sub: 'today',    warn: false         },
-            { label: 'Streak',   value: `${ACTIVITY.streak}d`, sub: 'streak', warn: false         },
+            { label: 'Sessions', value: activity.sessions,   sub: 'today',    warn: false         },
+            { label: 'Streak',   value: `${activity.streak}d`, sub: 'streak', warn: false         },
           ].map(({ label, value, sub, warn }) => (
             <div key={label} className="rounded-xl p-3 text-center"
               style={{ background: warn ? '#FDF6EC' : C.creamMid, border: `1px solid ${warn ? '#F0D898' : C.border}` }}>
@@ -318,10 +319,10 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
         <Card delay={.07} noPad>
           <div className="px-5 py-3.5 flex items-center justify-between">
             <CardLabel>Today's Activity</CardLabel>
-            <p className="text-[11px]" style={{ color: C.inkMuted }}>{ACTIVITY.sessions} sessions</p>
+            <p className="text-[11px]" style={{ color: C.inkMuted }}>{activity.sessions} sessions</p>
           </div>
           <Divider />
-          {ACTIVITY.timeline.map((item, i) => (
+          {activity.timeline.map((item, i) => (
             <div key={i}>
               <div className="px-5 py-3 flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-sm mt-0.5"
@@ -333,7 +334,7 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
                   <p className="text-xs mt-0.5" style={{ color: C.inkMuted }}>{item.time}</p>
                 </div>
               </div>
-              {i < ACTIVITY.timeline.length - 1 && <Divider />}
+              {i < activity.timeline.length - 1 && <Divider />}
             </div>
           ))}
         </Card>
@@ -354,7 +355,7 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
           className="font-lora italic text-base leading-relaxed pl-4 mb-4"
           style={{ borderLeft: `3px solid ${C.gold}`, color: C.inkMid }}
         >
-          "{handoff?.body ?? HANDOFF}"
+          "{handoff?.body}"
         </blockquote>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -387,7 +388,7 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
             <div className="flex-1 min-w-0">
               <Badge color="danger">Blocked</Badge>
               <p className="text-sm mt-1 leading-snug" style={{ color: C.ink }}>
-                IRS impersonation call intercepted. {PARENT} was coached to hang up.
+                IRS impersonation call intercepted. {parentName} was coached to hang up.
               </p>
               <p className="text-xs mt-1" style={{ color: C.inkMuted }}>11:24 AM · (202) 555-0147</p>
             </div>
@@ -407,14 +408,14 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
           <div className="space-y-2">
             <QuickActionItem
               icon="💬"
-              title={`Send ${PARENT} a message`}
+              title={`Send ${parentName} a message`}
               desc="Helper will deliver it naturally in conversation"
               onClick={() => setModal('message')}
             />
             <QuickActionItem
               icon="📅"
               title="Schedule a call reminder"
-              desc={`Remind ${PARENT} at a set time`}
+              desc={`Remind ${parentName} at a set time`}
               onClick={() => {}}
             />
             <QuickActionItem
@@ -455,7 +456,7 @@ function OverviewTab({ alerts, medications, wellness, handoff }) {
       {/* Message modal */}
       <AnimatePresence>
         {modal === 'message' && (
-          <SendMessageModal parentName={PARENT} onClose={() => setModal(null)} />
+          <SendMessageModal parentName={parentName} onClose={() => setModal(null)} />
         )}
       </AnimatePresence>
     </div>
@@ -729,7 +730,7 @@ const NAV_ITEMS = [
   { id: 'alerts',   icon: '🔔', label: 'Alerts'           },
 ]
 
-function Sidebar({ tab, setTab, urgentCount }) {
+function Sidebar({ tab, setTab, urgentCount, parentName }) {
   return (
     <div
       className="hidden sm:flex flex-col flex-shrink-0 w-56 sticky self-start"
@@ -739,7 +740,7 @@ function Sidebar({ tab, setTab, urgentCount }) {
         <p className="font-lora text-base font-medium" style={{ color: 'rgba(237,232,223,.4)' }}>
           Caregiver Dashboard
         </p>
-        <p className="font-lora text-lg font-medium mt-0.5" style={{ color: C.cream }}>{PARENT}'s Care</p>
+        <p className="font-lora text-lg font-medium mt-0.5" style={{ color: C.cream }}>{parentName}'s Care</p>
       </div>
 
       <nav className="flex-1 py-2">
@@ -772,7 +773,7 @@ function Sidebar({ tab, setTab, urgentCount }) {
           Helper's note
         </p>
         <p className="text-xs leading-relaxed font-lora italic" style={{ color: 'rgba(237,232,223,.45)' }}>
-          "{INSIGHT}"
+          "{makeInsight(parentName)}"
         </p>
       </div>
 
@@ -792,42 +793,44 @@ function Sidebar({ tab, setTab, urgentCount }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 
-const DEMO_SENIOR = '00000000-0000-0000-0000-000000000001'
-
-export default function CaregiverDashboard({ alerts: alertsProp }) {
+export default function CaregiverDashboard({ alerts: alertsProp, profile = {} }) {
+  const parentName = profile.parentName || 'your parent'
+  const seniorId   = profile.seniorId
+  const activity = makeActivity(parentName)
   const [tab, setTab] = useState('overview')
 
   const [alerts,      setAlerts]      = useState(alertsProp ?? [])
   const [medications, setMedications] = useState(MEDICATIONS)
   const [wellness,    setWellness]    = useState({ overall: WELLNESS_SCORE })
-  const [handoff,     setHandoff]     = useState({ body: HANDOFF })
+  const [handoff,     setHandoff]     = useState({ body: makeHandoff(parentName) })
 
   useEffect(() => {
+    if (!seniorId) return
     const load = async () => {
       try {
         const [dbAlerts, dbMeds, dbWellness, dbHandoff] = await Promise.all([
-          api.alerts.list(DEMO_SENIOR),
-          api.medications.list(DEMO_SENIOR),
-          api.wellness.today(DEMO_SENIOR),
-          api.handoffs.latest(DEMO_SENIOR),
+          api.alerts.list(seniorId),
+          api.medications.list(seniorId),
+          api.wellness.today(seniorId),
+          api.handoffs.latest(seniorId),
         ])
-        if (dbAlerts?.length)   setAlerts(dbAlerts.map(a => ({ ...a, time: new Date(a.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) })))
-        if (dbMeds?.length)     setMedications(dbMeds.map(m => ({ id: m.id, name: `${m.name} ${m.dose ?? ''}`.trim(), time: m.schedule, taken: m.taken_today, takenAt: m.last_taken ? new Date(m.last_taken).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null, note: m.schedule })))
+        if (dbAlerts?.length)    setAlerts(dbAlerts.map(a => ({ ...a, time: new Date(a.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) })))
+        if (dbMeds?.length)      setMedications(dbMeds.map(m => ({ id: m.id, name: `${m.name} ${m.dose ?? ''}`.trim(), time: m.schedule, taken: m.taken_today, takenAt: m.last_taken ? new Date(m.last_taken).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null, note: m.schedule })))
         if (dbWellness?.overall) setWellness(dbWellness)
-        if (dbHandoff?.body)    setHandoff(dbHandoff)
+        if (dbHandoff?.body)     setHandoff(dbHandoff)
       } catch {
         // Supabase not configured — keep mock data
       }
     }
     load()
-  }, [])
+  }, [seniorId])
 
   const urgentCount = alerts.filter(a => a.type === 'high').length
 
   return (
     <div className="flex min-h-screen" style={{ background: C.creamMid }}>
 
-      <Sidebar tab={tab} setTab={setTab} urgentCount={urgentCount} />
+      <Sidebar tab={tab} setTab={setTab} urgentCount={urgentCount} parentName={parentName} />
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-h-screen">
@@ -872,7 +875,7 @@ export default function CaregiverDashboard({ alerts: alertsProp }) {
           <AnimatePresence mode="wait">
             {tab === 'overview' && (
               <motion.div key="ov" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: .12 }}>
-                <OverviewTab alerts={alerts} medications={medications} wellness={wellness} handoff={handoff} />
+                <OverviewTab alerts={alerts} medications={medications} wellness={wellness} handoff={handoff} parentName={parentName} activity={activity} />
               </motion.div>
             )}
             {tab === 'health' && (

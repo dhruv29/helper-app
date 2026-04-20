@@ -14,6 +14,7 @@ async function req(method, path, body) {
 }
 
 export const api = {
+  setup: (data) => req('POST', '/api/setup', data),
   alerts: {
     list:    (seniorId) => req('GET', `/api/alerts?senior_id=${seniorId}`),
     create:  (data)     => req('POST', '/api/alerts', data),

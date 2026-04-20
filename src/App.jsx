@@ -1,37 +1,62 @@
-import { useState } from 'react'
-import { ClerkProvider, SignedIn, SignedOut, useUser } from '@clerk/clerk-react'
+import { useState, useEffect } from 'react'
+import { ClerkProvider, SignedIn, SignedOut, useUser, useClerk, AuthenticateWithRedirectCallback } from '@clerk/clerk-react'
+import { Logo } from './components/Logo'
 import SeniorHome from './pages/SeniorHome'
 import CaregiverDashboard from './pages/CaregiverDashboard'
 import Setup from './pages/Setup'
-import Login from './pages/Login'
+import Landing from './pages/Landing'
+import { api } from './lib/api.js'
 
 const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 const VIEWS = { SENIOR: 'senior', CAREGIVER: 'caregiver', SETUP: 'setup' }
 
-const hasProfile = () => {
-  try { return !!localStorage.getItem('helper_profile') } catch { return false }
+const profileKey = (userId) => `helper_profile_${userId}`
+const hasProfile = (userId) => {
+  try { return !!localStorage.getItem(profileKey(userId)) } catch { return false }
 }
 
 function AppShell() {
-  const { isLoaded } = useUser()
-  const [view, setView] = useState(() => hasProfile() ? VIEWS.SENIOR : VIEWS.SETUP)
+  const { isLoaded, user } = useUser()
+  const { signOut } = useClerk()
+  const [view, setView] = useState(null)
   const [alerts, setAlerts] = useState([
     { id: 1, type: 'high',   time: '2 min ago', title: 'Scam Call Blocked',    msg: 'Blocked call impersonating Medicare. Your parent was not charged.', icon: '🛡️' },
     { id: 2, type: 'medium', time: '1 hr ago',  title: 'Unusual Transaction',  msg: '$450 wire transfer flagged — awaiting your review.',                icon: '💳' },
   ])
 
+  useEffect(() => {
+    if (!isLoaded || !user) return
+    const raw = localStorage.getItem(profileKey(user.id))
+    if (!raw) { setView(VIEWS.SETUP); return }
+    const profile = JSON.parse(raw)
+    if (profile.seniorId) { setView(VIEWS.SENIOR); return }
+    // Profile exists but no DB ID yet — sync to Supabase now
+    api.setup(profile).then(({ seniorId, caregiverId }) => {
+      localStorage.setItem(profileKey(user.id), JSON.stringify({ ...profile, seniorId, caregiverId }))
+    }).catch(() => {}).finally(() => setView(VIEWS.SENIOR))
+  }, [isLoaded, user])
+
   const addAlert = (alert) =>
     setAlerts(prev => [{ ...alert, id: Date.now(), time: 'just now' }, ...prev])
 
-  const handleSetupDone = (data) => {
-    setView(data?.view === 'caregiver' ? VIEWS.CAREGIVER : VIEWS.SENIOR)
+  const handleSetupDone = async (data) => {
+    const nextView = data?.view === 'caregiver' ? VIEWS.CAREGIVER : VIEWS.SENIOR
+    if (data?._cancel) { setView(nextView); return }
+    try {
+      const { seniorId, caregiverId } = await api.setup(data)
+      localStorage.setItem(profileKey(user.id), JSON.stringify({ ...data, seniorId, caregiverId }))
+    } catch {
+      localStorage.setItem(profileKey(user.id), JSON.stringify(data))
+    }
+    setView(nextView)
   }
 
-  if (!isLoaded) return null
+  if (!view) return null
 
   if (view === VIEWS.SETUP) {
-    return <Setup onDone={handleSetupDone} />
+    const existingProfile = JSON.parse(localStorage.getItem(profileKey(user.id)) || 'null')
+    return <Setup onDone={handleSetupDone} existingProfile={existingProfile} />
   }
 
   return (
@@ -40,13 +65,10 @@ function AppShell() {
       {/* Top nav */}
       <nav className="sticky top-0 z-50 px-4 py-3 flex items-center justify-between shadow-sm"
         style={{ background: '#1C1917' }}>
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🛡️</span>
-          <span className="font-lora text-lg font-medium" style={{ color: '#EDE8DF' }}>helper</span>
-        </div>
+        <Logo size="md" dark />
 
         {/* Desktop nav */}
-        <div className="hidden sm:flex gap-1">
+        <div className="hidden sm:flex items-center gap-1">
           {[
             { v: VIEWS.SENIOR,    label: 'Parent View' },
             { v: VIEWS.CAREGIVER, label: 'Dashboard'   },
@@ -63,13 +85,20 @@ function AppShell() {
               }}
             >{label}</button>
           ))}
+          <button
+            onClick={() => signOut()}
+            className="ml-2 px-4 py-2 rounded-full text-sm transition-all"
+            style={{ color: 'rgba(237,232,223,.45)', border: '1px solid transparent' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#EDE8DF'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(237,232,223,.45)'}
+          >Sign out</button>
         </div>
       </nav>
 
       {/* Content */}
       <div style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {view === VIEWS.SENIOR    && <SeniorHome onAlert={addAlert} />}
-        {view === VIEWS.CAREGIVER && <CaregiverDashboard alerts={alerts} onAlert={addAlert} />}
+        {view === VIEWS.SENIOR    && <SeniorHome onAlert={addAlert} profile={JSON.parse(localStorage.getItem(profileKey(user.id)) || '{}')} />}
+        {view === VIEWS.CAREGIVER && <CaregiverDashboard alerts={alerts} onAlert={addAlert} profile={JSON.parse(localStorage.getItem(profileKey(user.id)) || '{}')} />}
       </div>
 
       {/* Mobile bottom nav */}
@@ -90,6 +119,14 @@ function AppShell() {
             <span className="text-[10px] font-semibold tracking-wide">{label}</span>
           </button>
         ))}
+        <button
+          onClick={() => signOut()}
+          className="flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors"
+          style={{ color: 'rgba(237,232,223,.35)' }}
+        >
+          <span className="text-xl leading-none">↩</span>
+          <span className="text-[10px] font-semibold tracking-wide">Sign out</span>
+        </button>
       </nav>
 
     </div>
@@ -113,10 +150,18 @@ export default function App() {
     )
   }
 
+  if (window.location.pathname === '/sso-callback') {
+    return (
+      <ClerkProvider publishableKey={CLERK_KEY}>
+        <AuthenticateWithRedirectCallback />
+      </ClerkProvider>
+    )
+  }
+
   return (
     <ClerkProvider publishableKey={CLERK_KEY}>
       <SignedOut>
-        <Login />
+        <Landing />
       </SignedOut>
       <SignedIn>
         <AppShell />

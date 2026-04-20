@@ -30,11 +30,51 @@ Optional TTS (falls back to browser `speechSynthesis` if unset):
 - `FISH_AUDIO_API_KEY` / `FISH_AUDIO_VOICE_ID`
 - `TTS_PROVIDER=elevenlabs|fish` — override auto-selection
 
+Clerk (required for auth — frontend only):
+- `VITE_CLERK_PUBLISHABLE_KEY` — from clerk.com → your app → API Keys
+
 Supabase (optional — app works with mock data if unset):
 - `SUPABASE_URL` — project URL from Supabase dashboard → Project Settings → API
 - `SUPABASE_SERVICE_KEY` — service_role secret key (bypasses RLS, server-only)
 
 To set up the database: run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor. Seed data (demo senior Margaret + caregiver Sarah) is included in the migration.
+
+## Service Setup
+
+### Clerk (Authentication)
+
+1. Go to [clerk.com](https://clerk.com) and create a free account
+2. Create a new application — name it "Helper"
+3. Choose **Email** as the sign-in option (disable social for now)
+4. Go to **API Keys** in the left sidebar
+5. Copy the **Publishable Key** (starts with `pk_test_…`)
+6. Add to `.env`:
+   ```
+   VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+   ```
+7. Restart the dev server — the login screen will appear
+
+Auth flow: **Login → (no profile) → Onboarding → App** / **(profile exists) → App**
+
+### Supabase (Database)
+
+1. Go to [supabase.com](https://supabase.com) and create a free account
+2. Click **New project** — choose a region close to your users
+3. Set a strong database password (save it somewhere)
+4. Wait ~2 minutes for the project to provision
+5. Go to **SQL Editor** in the left sidebar
+6. Paste the entire contents of `supabase/migrations/001_initial_schema.sql` and click **Run**
+   - This creates all 8 tables + seeds demo data (Margaret + Sarah)
+7. Go to **Project Settings → API**
+8. Copy **Project URL** and **service_role** secret key
+9. Add to `.env`:
+   ```
+   SUPABASE_URL=https://xxxx.supabase.co
+   SUPABASE_SERVICE_KEY=eyJ...
+   ```
+10. Restart the server — the dashboard will load real data instead of mocks
+
+> **Never expose `SUPABASE_SERVICE_KEY` to the frontend.** It bypasses Row Level Security. It only lives in the Express server (`server/db.js`).
 
 ## Architecture
 

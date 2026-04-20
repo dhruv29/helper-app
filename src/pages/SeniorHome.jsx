@@ -22,7 +22,11 @@ const UPCOMING = {
   community: [],
 }
 
-const INITIAL_GREETING = "Good morning, Margaret. How are you feeling today?"
+const greeting = (name) => {
+  const h = new Date().getHours()
+  const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${time}, ${name || 'there'}. How are you feeling today?`
+}
 
 // ── Breathing orb ──────────────────────────────────────────────────────────────
 
@@ -302,7 +306,7 @@ function TabBar({ tab, setTab }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function SeniorHome({ onAlert }) {
+export default function SeniorHome({ onAlert, profile = {} }) {
   const [tab, setTab]             = useState('talk')
   const [voiceState, setVoiceState] = useState('idle')
   const [response, setResponse]   = useState('')
@@ -343,7 +347,7 @@ export default function SeniorHome({ onAlert }) {
   const displayText =
     response   ? response   :
     transcript ? null       :
-    INITIAL_GREETING
+    greeting(profile.parentName)
 
   return (
     <div className="min-h-screen" style={{ background: '#EDE8DF' }}>
