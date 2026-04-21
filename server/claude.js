@@ -90,8 +90,8 @@ export async function createVoiceChatStream({ message, history, mode, res }) {
   }
 
   const stream = client.messages.stream({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 300,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
     system: systemPrompt,
     messages,
   })

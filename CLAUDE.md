@@ -37,6 +37,9 @@ Supabase (optional — app works with mock data if unset):
 - `SUPABASE_URL` — project URL from Supabase dashboard → Project Settings → API
 - `SUPABASE_SERVICE_KEY` — service_role secret key (bypasses RLS, server-only)
 
+Frontend API base URL (optional):
+- `VITE_API_URL` — overrides default `http://localhost:3001` in `src/lib/api.js`
+
 To set up the database: run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor. Seed data (demo senior Margaret + caregiver Sarah) is included in the migration.
 
 ## Service Setup
@@ -96,10 +99,20 @@ This is a fullstack eldercare assistant. The frontend is a React SPA; the backen
 | View | File | Purpose |
 |------|------|---------|
 | `senior` | `SeniorHome.jsx` | Elder-facing: Talk to Sarah (VoiceConnect), conversation history, upcoming meds/appointments |
-| `caregiver` | `CaregiverDashboard.jsx` | Caregiver-facing: Overview, Health, Finance, Alerts tabs; dark glassmorphism theme |
-| `setup` | `Setup.jsx` | Profile config stored in `localStorage` under `helper_profile` |
+| `caregiver` | `CaregiverDashboard.jsx` | Caregiver-facing: Overview, Health, Finance, Alerts tabs; warm cream palette |
+| `setup` | `Setup.jsx` | Onboarding wizard on first login; also reachable from nav to edit senior profile + medications |
 
 Alerts originate either from `server/claude.js` keyword detection (emitted via SSE → `VoiceConnect` → `onAlert` prop) or from the SOS button in `SeniorHome`.
+
+`Landing.jsx` is the unauthenticated marketing page shown to signed-out users. Auth state is managed by Clerk; `App.jsx` wraps everything in `<ClerkProvider>` and renders `<Landing>` for `<SignedOut>` and `<AppShell>` for `<SignedIn>`. The SSO callback route (`/sso-callback`) is handled inline in `App.jsx` before the provider mounts.
+
+### localStorage keys
+
+Profile is stored per Clerk user: `helper_profile_{userId}` (shape: `{ seniorName, caregiverName, ..., seniorId, caregiverId }`). Conversation history is stored at `helper_history`. `seniorId` / `caregiverId` are written after the first successful `POST /api/setup` call and used for all subsequent API queries.
+
+### Animations
+
+`framer-motion` (`motion`, `AnimatePresence`) is used for page transitions and micro-interactions across `Login.jsx`, `Landing.jsx`, and `Setup.jsx`.
 
 ### Key component: `VoiceConnect`
 

@@ -46,6 +46,8 @@ const VoiceConnect = forwardRef(function VoiceConnect(
   const audioRef = useRef(null)
   const audioUnlockedRef = useRef(false)
   const abortRef = useRef(false)
+  const silenceTimerRef = useRef(null)
+  const audioContextRef = useRef(null)
 
   useEffect(() => { onStateChange?.(voiceState) }, [voiceState, onStateChange])
   useEffect(() => { onResponse?.(response) }, [response, onResponse])
@@ -223,6 +225,10 @@ const VoiceConnect = forwardRef(function VoiceConnect(
 
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
+        clearTimeout(silenceTimerRef.current)
+        silenceTimerRef.current = null
+        audioContextRef.current?.close().catch(() => {})
+        audioContextRef.current = null
         setVoiceState(STATES.THINKING)
         const blob = new Blob(chunksRef.current, { type: mimeType })
         chunksRef.current = []
@@ -232,6 +238,34 @@ const VoiceConnect = forwardRef(function VoiceConnect(
 
       recorder.start()
       mediaRecorderRef.current = recorder
+
+      // Auto-stop on 1.5s of silence using Web Audio analyser
+      const audioCtx = new AudioContext()
+      audioContextRef.current = audioCtx
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 512
+      source.connect(analyser)
+      const data = new Uint8Array(analyser.frequencyBinCount)
+
+      const checkSilence = () => {
+        if (mediaRecorderRef.current?.state !== 'recording') return
+        analyser.getByteFrequencyData(data)
+        const volume = data.reduce((s, v) => s + v, 0) / data.length
+        if (volume < 8) {
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              mediaRecorderRef.current?.stop()
+              audioCtx.close()
+            }, 1500)
+          }
+        } else {
+          clearTimeout(silenceTimerRef.current)
+          silenceTimerRef.current = null
+        }
+        requestAnimationFrame(checkSilence)
+      }
+      requestAnimationFrame(checkSilence)
     } catch {
       setVoiceState(STATES.ERROR)
       setResponse('Could not access microphone. Please allow microphone permission and try again.')
