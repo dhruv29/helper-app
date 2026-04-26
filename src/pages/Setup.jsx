@@ -286,6 +286,93 @@ function StepEmergency({ data, set }) {
   )
 }
 
+const NOTIFY_ICONS = {
+  dashboard: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  ),
+  push: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  ),
+  email: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+    </svg>
+  ),
+  all: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+    </svg>
+  ),
+}
+
+function StepNotifications({ data, set }) {
+  const OPTIONS = [
+    { id: 'dashboard', label: 'Dashboard',        desc: 'View alerts in your caregiver dashboard',  available: true  },
+    { id: 'push',      label: 'Mobile push',       desc: 'Push notifications on your phone',         available: false },
+    { id: 'email',     label: 'Email',             desc: 'Receive alerts by email',                  available: false },
+    { id: 'all',       label: 'All channels',      desc: 'Dashboard, push, and email combined',      available: false },
+  ]
+  const selected = data.notifyVia || 'dashboard'
+  return (
+    <div>
+      <h2 className="font-lora text-[28px] font-normal leading-snug mb-1" style={{ color: '#1C1917' }}>
+        How should we notify you?
+      </h2>
+      <p className="text-[15px] mb-6" style={{ color: '#7A7269' }}>
+        When Helper flags something important, we'll reach you here.
+      </p>
+      <div className="space-y-3">
+        {OPTIONS.map(opt => {
+          const isSelected = selected === opt.id
+          return (
+            <button
+              key={opt.id}
+              onClick={() => set('notifyVia', opt.id)}
+              className="w-full flex items-center gap-4 px-4 py-4 rounded-xl text-left transition-all"
+              style={{
+                background: isSelected ? '#1C1917' : '#F0EBE2',
+                border:     `1.5px solid ${isSelected ? '#1C1917' : '#C8C0B4'}`,
+                fontFamily: 'DM Sans, sans-serif',
+                cursor:     'pointer',
+              }}
+            >
+              <span style={{ color: isSelected ? '#EDE8DF' : '#6B6560', flexShrink: 0 }}>
+                {NOTIFY_ICONS[opt.id]}
+              </span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-[15px] font-semibold" style={{ color: isSelected ? '#EDE8DF' : '#1C1917' }}>
+                    {opt.label}
+                  </p>
+                  {!opt.available && (
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: isSelected ? 'rgba(237,232,223,.15)' : 'rgba(28,25,23,.08)', color: isSelected ? 'rgba(237,232,223,.6)' : '#8A8279' }}>
+                      Coming soon
+                    </span>
+                  )}
+                </div>
+                <p className="text-[13px] mt-0.5" style={{ color: isSelected ? 'rgba(237,232,223,.6)' : '#8A8279' }}>
+                  {opt.desc}
+                </p>
+              </div>
+              {isSelected && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EDE8DF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function StepDone({ data, onDone }) {
   return (
     <div className="flex flex-col items-center text-center py-4">
@@ -348,6 +435,7 @@ export default function Setup({ onDone, existingProfile }) {
     medications: [],
     emergencyName: '',
     emergencyPhone: '',
+    notifyVia: 'dashboard',
   })
 
   useEffect(() => {
@@ -359,7 +447,7 @@ export default function Setup({ onDone, existingProfile }) {
     }).catch(() => {})
   }, [existingProfile?.seniorId])
 
-  const TOTAL = 5
+  const TOTAL = 6
 
   const set = (k, v) => setData(p => ({ ...p, [k]: v }))
 
@@ -368,12 +456,13 @@ export default function Setup({ onDone, existingProfile }) {
   }
 
   const steps = [
-    <StepWelcome     key="s0" data={data} set={set} />,
-    <StepParent      key="s1" data={data} set={set} />,
-    <StepInterests   key="s2" data={data} set={set} />,
-    <StepMedications key="s3" data={data} set={set} />,
-    <StepEmergency   key="s4" data={data} set={set} />,
-    <StepDone        key="s5" data={data} onDone={handleDone} />,
+    <StepWelcome       key="s0" data={data} set={set} />,
+    <StepParent        key="s1" data={data} set={set} />,
+    <StepInterests     key="s2" data={data} set={set} />,
+    <StepMedications   key="s3" data={data} set={set} />,
+    <StepEmergency     key="s4" data={data} set={set} />,
+    <StepNotifications key="s5" data={data} set={set} />,
+    <StepDone          key="s6" data={data} onDone={handleDone} />,
   ]
 
   return (
