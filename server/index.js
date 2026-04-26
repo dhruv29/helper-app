@@ -106,7 +106,7 @@ app.post('/api/speak', async (req, res) => {
 
 // Voice chat endpoint — streams Claude's response via SSE
 app.post('/api/voice-chat', async (req, res) => {
-  const { message, history = [], mode = 'senior' } = req.body
+  const { message, history = [], mode = 'senior', caregiverName } = req.body
 
   if (!message?.trim()) {
     return res.status(400).json({ error: 'Message is required' })
@@ -125,7 +125,7 @@ app.post('/api/voice-chat', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no')
 
   try {
-    await createVoiceChatStream({ message, history, mode, res })
+    await createVoiceChatStream({ message, history, mode, caregiverName, res })
   } catch (err) {
     console.error('[voice-chat error]', err.message)
     res.write(`data: ${JSON.stringify({ text: 'Sorry, I had trouble responding. Please try again.' })}\n\n`)

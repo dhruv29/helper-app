@@ -33,7 +33,7 @@ function saveToLocalStorage(history) {
 
 
 const VoiceConnect = forwardRef(function VoiceConnect(
-  { onAlert, mode = 'senior', onStateChange, onResponse, onTranscript, onHistory, compact = false, headless = false },
+  { onAlert, mode = 'senior', onStateChange, onResponse, onTranscript, onHistory, compact = false, headless = false, caregiverName },
   ref
 ) {
   const [voiceState, setVoiceState] = useState(STATES.IDLE)
@@ -131,7 +131,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       const res = await fetch('/api/voice-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText, history: conversationHistory, mode }),
+        body: JSON.stringify({ message: userText, history: conversationHistory, mode, caregiverName }),
       })
       if (!res.ok) throw new Error('API error')
 

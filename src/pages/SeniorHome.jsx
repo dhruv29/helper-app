@@ -361,20 +361,18 @@ export default function SeniorHome({ onAlert, profile = {} }) {
 
   const persistAlert = (alert) => {
     onAlert?.(alert)
-    if (profile.seniorId) {
-      const category = alert.category ||
-        (alert.icon === '🛡️' ? 'scam' :
-         alert.icon === '💳' ? 'financial' :
-         alert.title?.toLowerCase().includes('scam') ? 'scam' : 'health')
-      api.alerts.create({
-        senior_id: profile.seniorId,
-        type: alert.type || 'medium',
-        category,
-        title: alert.title,
-        msg: alert.msg,
-        icon: alert.icon,
-      }).catch(() => { /* non-critical */ })
-    }
+    const category = alert.category ||
+      (alert.icon === '🛡️' ? 'scam' :
+       alert.icon === '💳' ? 'financial' :
+       alert.title?.toLowerCase().includes('scam') ? 'scam' : 'health')
+    api.alerts.create({
+      senior_id: profile.seniorId,  // server falls back to demo senior if undefined
+      type: alert.type || 'medium',
+      category,
+      title: alert.title,
+      msg: alert.msg,
+      icon: alert.icon,
+    }).catch(() => { /* non-critical */ })
   }
 
   const handleQuickAction = (message) => {
@@ -427,6 +425,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
         headless
         onAlert={persistAlert}
         mode="senior"
+        caregiverName={profile.caregiverName}
         onStateChange={setVoiceState}
         onResponse={setResponse}
         onTranscript={setTranscript}
