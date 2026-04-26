@@ -804,6 +804,16 @@ export default function CaregiverDashboard({ alerts: alertsProp, profile = {} })
   const [wellness,    setWellness]    = useState({ overall: WELLNESS_SCORE })
   const [handoff,     setHandoff]     = useState({ body: makeHandoff(parentName) })
 
+  // Sync new real-time alerts from parent without stomping DB-loaded ones
+  useEffect(() => {
+    if (!alertsProp?.length) return
+    setAlerts(prev => {
+      const existingIds = new Set(prev.map(a => a.id))
+      const newOnes = alertsProp.filter(a => !existingIds.has(a.id))
+      return newOnes.length ? [...newOnes, ...prev] : prev
+    })
+  }, [alertsProp])
+
   useEffect(() => {
     if (!seniorId) return
     const load = async () => {
