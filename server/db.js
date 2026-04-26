@@ -35,7 +35,7 @@ export async function upsertSenior({ id, name, age, city, healthNotes, interests
   return data
 }
 
-export async function upsertCaregiver({ id, name, relationship, seniorId, emergencyName, emergencyPhone }) {
+export async function upsertCaregiver({ id, name, relationship, seniorId, emergencyName, emergencyPhone, clerkUserId }) {
   const row = {
     name,
     relationship: relationship || null,
@@ -44,12 +44,25 @@ export async function upsertCaregiver({ id, name, relationship, seniorId, emerge
     emergency_phone: emergencyPhone || null,
   }
   if (id) row.id = id
+  if (clerkUserId) row.clerk_user_id = clerkUserId
+
+  // Prefer clerk_user_id as conflict key — guarantees one record per Clerk account
+  const conflictCol = clerkUserId ? 'clerk_user_id' : 'id'
   const { data, error } = await db
     .from('caregivers')
-    .upsert(row, { onConflict: 'id' })
+    .upsert(row, { onConflict: conflictCol })
     .select('id')
     .single()
   if (error) throw error
+  return data
+}
+
+export async function getCaregiverByClerkId(clerkUserId) {
+  const { data } = await db
+    .from('caregivers')
+    .select('id, senior_id')
+    .eq('clerk_user_id', clerkUserId)
+    .maybeSingle()
   return data
 }
 

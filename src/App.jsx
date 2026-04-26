@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ClerkProvider, SignedIn, SignedOut, useUser, useClerk, AuthenticateWithRedirectCallback } from '@clerk/clerk-react'
 import { Logo } from './components/Logo'
 import SeniorHome from './pages/SeniorHome'
@@ -41,6 +41,7 @@ function AppShell() {
   const { isLoaded, user } = useUser()
   const { signOut } = useClerk()
   const [view, setView] = useState(null)
+  const setupCalledRef = useRef(null)  // tracks which userId we've already seeded
   const [alerts, setAlerts] = useState([
     { id: 1, type: 'high',   time: '2 min ago', title: 'Scam Call Blocked',    msg: 'Blocked call impersonating Medicare. Your parent was not charged.', icon: '🛡️' },
     { id: 2, type: 'medium', time: '1 hr ago',  title: 'Unusual Transaction',  msg: '$450 wire transfer flagged — awaiting your review.',                icon: '💳' },
@@ -51,11 +52,14 @@ function AppShell() {
     const raw = localStorage.getItem(profileKey(user.id))
 
     if (!raw) {
+      if (setupCalledRef.current === user.id) return  // already in progress
+      setupCalledRef.current = user.id
+
       const email = user.emailAddresses?.[0]?.emailAddress
       const demo  = DEMO_PROFILES[email]
       if (demo) {
         // Known demo account — skip onboarding, seed directly
-        api.setup(demo)
+        api.setup({ ...demo, clerkUserId: user.id })
           .then(({ seniorId, caregiverId }) =>
             localStorage.setItem(profileKey(user.id), JSON.stringify({ ...demo, seniorId, caregiverId }))
           )
@@ -84,7 +88,7 @@ function AppShell() {
     const nextView = data?.view === 'caregiver' ? VIEWS.CAREGIVER : VIEWS.SENIOR
     if (data?._cancel) { setView(nextView); return }
     try {
-      const { seniorId, caregiverId } = await api.setup(data)
+      const { seniorId, caregiverId } = await api.setup({ ...data, clerkUserId: user.id })
       localStorage.setItem(profileKey(user.id), JSON.stringify({ ...data, seniorId, caregiverId }))
     } catch {
       localStorage.setItem(profileKey(user.id), JSON.stringify(data))

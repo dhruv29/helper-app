@@ -8,7 +8,7 @@ import {
   getTodayWellness, upsertWellness,
   getLatestHandoff, upsertHandoff,
   startConversation, endConversation, saveMessage, getMessages,
-  upsertSenior, upsertCaregiver, syncMedications,
+  upsertSenior, upsertCaregiver, syncMedications, getCaregiverByClerkId,
 } from './db.js'
 import 'dotenv/config'
 
@@ -143,14 +143,24 @@ const DEMO_SENIOR = '00000000-0000-0000-0000-000000000001'
 app.post('/api/setup', async (req, res) => {
   try {
     const { seniorId, caregiverId, parentName, parentAge, parentCity, healthNotes, interests,
-            caregiverName, relationship, emergencyName, emergencyPhone, medications } = req.body
+            caregiverName, relationship, emergencyName, emergencyPhone, medications,
+            clerkUserId } = req.body
+
+    // If we have a clerkUserId, check if this caregiver already exists to reuse their seniorId
+    let effectiveSeniorId = seniorId
+    if (clerkUserId && !seniorId) {
+      const existing = await getCaregiverByClerkId(clerkUserId)
+      if (existing?.senior_id) effectiveSeniorId = existing.senior_id
+    }
+
     const senior = await upsertSenior({
-      id: seniorId || undefined,
+      id: effectiveSeniorId || undefined,
       name: parentName, age: parentAge, city: parentCity, healthNotes, interests,
     })
     const caregiver = await upsertCaregiver({
       id: caregiverId || undefined,
-      name: caregiverName, relationship, seniorId: senior.id, emergencyName, emergencyPhone,
+      name: caregiverName, relationship, seniorId: senior.id,
+      emergencyName, emergencyPhone, clerkUserId,
     })
     if (medications) await syncMedications(senior.id, medications)
     res.json({ seniorId: senior.id, caregiverId: caregiver.id })
