@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import VoiceConnect from '../components/VoiceConnect'
+import { api } from '../lib/api'
 
 // ── Static data ────────────────────────────────────────────────────────────────
 
@@ -322,15 +323,40 @@ export default function SeniorHome({ onAlert, profile = {} }) {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [conversationHistory, response])
 
+  const persistAlert = (alert) => {
+    onAlert?.(alert)
+    if (profile.seniorId) {
+      const category = alert.category ||
+        (alert.icon === '🛡️' ? 'scam' :
+         alert.icon === '💳' ? 'financial' :
+         alert.title?.toLowerCase().includes('scam') ? 'scam' : 'health')
+      api.alerts.create({
+        senior_id: profile.seniorId,
+        type: alert.type || 'medium',
+        category,
+        title: alert.title,
+        msg: alert.msg,
+        icon: alert.icon,
+      }).catch(() => { /* non-critical — alert already in UI */ })
+    }
+  }
+
   const handleQuickAction = (message) => {
     setTab('talk')
     setTimeout(() => vcRef.current?.triggerMessage(message), 80)
   }
 
+  const handleNewConversation = () => {
+    vcRef.current?.newConversation()
+    setConversationHistory([])
+    setTranscript('')
+    setResponse('')
+  }
+
   const handleSos = () => {
     if (sosSent) return
     setSosSent(true)
-    onAlert?.({ type: 'high', title: '🚨 EMERGENCY ALERT', msg: 'Emergency button pressed. Contacting caregivers now.', icon: '🚨' })
+    persistAlert({ type: 'high', title: '🚨 EMERGENCY ALERT', msg: 'Emergency button pressed. Contacting caregivers now.', icon: '🚨' })
     setTimeout(() => { setSosConfirm(false); setSosSent(false) }, 4000)
   }
 
@@ -359,7 +385,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
       <VoiceConnect
         ref={vcRef}
         headless
-        onAlert={onAlert}
+        onAlert={persistAlert}
         mode="senior"
         onStateChange={setVoiceState}
         onResponse={setResponse}
@@ -470,6 +496,24 @@ export default function SeniorHome({ onAlert, profile = {} }) {
                    voiceState === 'listening' ? 'Speak now, or tap to stop'       :
                    voiceState === 'speaking'  ? 'Tap to interrupt'                : ' '}
                 </p>
+
+                {/* New conversation button */}
+                <AnimatePresence>
+                  {conversationHistory.length > 0 && voiceState === 'idle' && (
+                    <motion.button
+                      onClick={handleNewConversation}
+                      className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium"
+                      style={{ color: '#A09890', border: '1.5px solid #D8D0C4', background: 'transparent' }}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      whileHover={{ borderColor: '#1C1917', color: '#1C1917' }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <span>↺</span> New conversation
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* ── Conversation thread ───────────────────────────── */}

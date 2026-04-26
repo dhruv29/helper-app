@@ -314,6 +314,9 @@ const VoiceConnect = forwardRef(function VoiceConnect(
         sendToHelper(text)
       }, 80)
     },
+    newConversation: () => {
+      clearHistory()
+    },
   }))
 
   if (headless) return null
