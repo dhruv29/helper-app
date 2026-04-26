@@ -16,6 +16,27 @@ const hasProfile = (userId) => {
   try { return !!localStorage.getItem(profileKey(userId)) } catch { return false }
 }
 
+const DEMO_PROFILES = {
+  'dhruv.mait@gmail.com': {
+    caregiverName: 'Dhruv',
+    relationship:  'Son',
+    parentName:    'Vijay Kumar Gupta',
+    parentAge:     '78',
+    parentCity:    'Delhi, India',
+    healthNotes:   'Hip pain, takes blood pressure medication. Moves slowly in the mornings.',
+    interests:     ['Family photos', 'Gardening', 'TV shows', 'Cooking', 'Grandchildren'],
+    extraInterests: 'Loves cooking traditional recipes and watching nature documentaries.',
+    medications: [
+      { name: 'Metformin',   dose: '500mg', schedule: 'Morning' },
+      { name: 'Lisinopril',  dose: '10mg',  schedule: 'Morning' },
+      { name: 'Atorvastatin', dose: '20mg', schedule: 'Evening' },
+    ],
+    emergencyName:  'James Chen',
+    emergencyPhone: '+1 (555) 000-0000',
+    notifyVia:      'dashboard',
+  },
+}
+
 function AppShell() {
   const { isLoaded, user } = useUser()
   const { signOut } = useClerk()
@@ -28,10 +49,29 @@ function AppShell() {
   useEffect(() => {
     if (!isLoaded || !user) return
     const raw = localStorage.getItem(profileKey(user.id))
-    if (!raw) { setView(VIEWS.SETUP); return }
+
+    if (!raw) {
+      const email = user.emailAddresses?.[0]?.emailAddress
+      const demo  = DEMO_PROFILES[email]
+      if (demo) {
+        // Known demo account — skip onboarding, seed directly
+        api.setup(demo)
+          .then(({ seniorId, caregiverId }) =>
+            localStorage.setItem(profileKey(user.id), JSON.stringify({ ...demo, seniorId, caregiverId }))
+          )
+          .catch(() =>
+            localStorage.setItem(profileKey(user.id), JSON.stringify(demo))
+          )
+          .finally(() => setView(VIEWS.SENIOR))
+        return
+      }
+      // Any other email — go through normal onboarding with blank defaults
+      setView(VIEWS.SETUP)
+      return
+    }
+
     const profile = JSON.parse(raw)
     if (profile.seniorId) { setView(VIEWS.SENIOR); return }
-    // Profile exists but no DB ID yet — sync to Supabase now
     api.setup(profile).then(({ seniorId, caregiverId }) => {
       localStorage.setItem(profileKey(user.id), JSON.stringify({ ...profile, seniorId, caregiverId }))
     }).catch(() => {}).finally(() => setView(VIEWS.SENIOR))
