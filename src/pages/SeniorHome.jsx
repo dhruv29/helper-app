@@ -316,12 +316,48 @@ export default function SeniorHome({ onAlert, profile = {} }) {
   const [conversationHistory, setConversationHistory] = useState([])
   const [sosConfirm, setSosConfirm] = useState(false)
   const [sosSent, setSosSent]       = useState(false)
-  const vcRef = useRef(null)
-  const chatBottomRef = useRef(null)
+  const vcRef            = useRef(null)
+  const threadRef        = useRef(null)  // scrollable thread container
+  const activeConvIdRef  = useRef(null)  // Supabase conversation ID
 
+  // Scroll thread to bottom whenever history or live response changes
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight
+    }
   }, [conversationHistory, response])
+
+  // Persist conversation to Supabase when history updates
+  const convStartRef = useRef(null)  // Promise<id> resolves before messages are saved
+
+  const persistConversation = async (history) => {
+    if (!profile.seniorId) return
+    const last = history[history.length - 1]
+    if (!last) return
+
+    if (last.role === 'user' && history.length === 1) {
+      // First message — start conversation and store the promise so assistant handler can await it
+      convStartRef.current = api.conversations.start(profile.seniorId)
+        .then(conv => { activeConvIdRef.current = conv.id; return conv.id })
+        .catch(() => null)
+    }
+
+    if (last.role === 'assistant') {
+      // Await start in case the API call hasn't finished yet (race condition fix)
+      const convId = activeConvIdRef.current || (convStartRef.current ? await convStartRef.current : null)
+      if (!convId) return
+      const userMsg = history[history.length - 2]
+      try {
+        await api.conversations.addMessage(convId, 'user', userMsg?.content || '')
+        await api.conversations.addMessage(convId, 'assistant', last.content)
+      } catch { /* non-critical */ }
+    }
+  }
+
+  const handleHistory = (history) => {
+    setConversationHistory(history)
+    persistConversation(history)
+  }
 
   const persistAlert = (alert) => {
     onAlert?.(alert)
@@ -337,7 +373,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
         title: alert.title,
         msg: alert.msg,
         icon: alert.icon,
-      }).catch(() => { /* non-critical — alert already in UI */ })
+      }).catch(() => { /* non-critical */ })
     }
   }
 
@@ -347,6 +383,10 @@ export default function SeniorHome({ onAlert, profile = {} }) {
   }
 
   const handleNewConversation = () => {
+    if (activeConvIdRef.current) {
+      api.conversations.end(activeConvIdRef.current, {}).catch(() => {})
+      activeConvIdRef.current = null
+    }
     vcRef.current?.newConversation()
     setConversationHistory([])
     setTranscript('')
@@ -390,7 +430,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
         onStateChange={setVoiceState}
         onResponse={setResponse}
         onTranscript={setTranscript}
-        onHistory={setConversationHistory}
+        onHistory={handleHistory}
       />
 
       <div className="max-w-2xl mx-auto px-4 pt-4 pb-28 sm:pb-8">
@@ -404,7 +444,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
               exit={{ opacity: 0, y: -14 }} transition={{ duration: .25 }}
             >
               {/* Quick actions */}
-              <div className="flex gap-2 overflow-x-auto pb-1 mb-5" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex gap-2 overflow-x-auto pb-1 mb-4" style={{ scrollbarWidth: 'none' }}>
                 {QUICK_ACTIONS.map((qa, i) => (
                   <motion.button
                     key={qa.label}
@@ -422,7 +462,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
               </div>
 
               {/* Top bar: time + SOS */}
-              <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center justify-between mb-3 px-1">
                 <p className="text-sm" style={{ color: '#A09890' }}>{timeStr}</p>
                 <button
                   onClick={() => setSosConfirm(v => !v)}
@@ -435,7 +475,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
               <AnimatePresence>
                 {sosConfirm && (
                   <motion.div
-                    className="mb-4 rounded-2xl px-5 py-4"
+                    className="mb-3 rounded-2xl px-5 py-4"
                     style={{ background: '#FEF2F2', border: '1px solid #FCA5A5' }}
                     initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }} transition={{ duration: .2 }}
@@ -458,14 +498,12 @@ export default function SeniorHome({ onAlert, profile = {} }) {
                 )}
               </AnimatePresence>
 
-              {/* Orb + button */}
-              <div className="flex flex-col items-center py-6">
-                <div className="mb-6">
-                  <HelperOrb voiceState={voiceState} size={conversationHistory.length > 0 ? 100 : 180} />
-                </div>
-
-                {/* Greeting — only when no conversation yet */}
-                {conversationHistory.length === 0 && !response && !transcript && (
+              {/* ── EMPTY STATE: big centred orb + greeting + button ── */}
+              {conversationHistory.length === 0 && !response && !transcript ? (
+                <div className="flex flex-col items-center py-6">
+                  <div className="mb-6">
+                    <HelperOrb voiceState={voiceState} size={180} />
+                  </div>
                   <motion.p
                     className="font-lora text-2xl text-center leading-relaxed mb-6 px-2"
                     style={{ color: '#1C1917', fontWeight: 400, maxWidth: 440 }}
@@ -474,108 +512,124 @@ export default function SeniorHome({ onAlert, profile = {} }) {
                   >
                     {greeting(profile.parentName)}
                   </motion.p>
-                )}
+                  <motion.button
+                    onClick={() => vcRef.current?.triggerVoice()}
+                    disabled={voiceState === 'thinking'}
+                    className="text-white font-medium text-xl rounded-full px-14 py-5 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ background: buttonBg, boxShadow: '0 8px 24px rgba(28,25,23,.18)', transition: 'background .4s ease' }}
+                    whileHover={{ scale: 1.03, boxShadow: '0 12px 32px rgba(28,25,23,.25)' }}
+                    whileTap={{ scale: .96 }}
+                  >
+                    {buttonLabel}
+                  </motion.button>
+                  <p className="text-sm mt-4" style={{ color: '#A09890' }}>Tap the button and speak clearly</p>
+                </div>
+              ) : (
+                /* ── ACTIVE STATE: compact top bar + scrollable thread ── */
+                <div>
+                  {/* Compact controls: orb + centred pill + new-conv */}
+                  <div className="flex items-center justify-between py-3 mb-3"
+                    style={{ borderBottom: '1px solid #D8D0C4' }}>
+                    <HelperOrb voiceState={voiceState} size={56} />
 
-                <motion.button
-                  onClick={() => vcRef.current?.triggerVoice()}
-                  disabled={voiceState === 'thinking'}
-                  className="text-white font-medium text-xl rounded-full px-14 py-5 disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{
-                    background: buttonBg,
-                    boxShadow: '0 8px 24px rgba(28,25,23,.18)',
-                    transition: 'background .4s ease',
-                  }}
-                  whileHover={voiceState !== 'thinking' ? { scale: 1.03, boxShadow: '0 12px 32px rgba(28,25,23,.25)' } : {}}
-                  whileTap={{ scale: .96 }}
-                >
-                  {buttonLabel}
-                </motion.button>
+                    <div className="flex flex-col items-center gap-1">
+                      <motion.button
+                        onClick={() => vcRef.current?.triggerVoice()}
+                        disabled={voiceState === 'thinking'}
+                        className="text-white font-medium text-base rounded-full px-8 py-3 disabled:opacity-60 disabled:cursor-not-allowed"
+                        style={{ background: buttonBg, boxShadow: '0 4px 16px rgba(28,25,23,.15)', transition: 'background .4s ease' }}
+                        whileHover={voiceState !== 'thinking' ? { scale: 1.03 } : {}}
+                        whileTap={{ scale: .96 }}
+                      >
+                        {buttonLabel}
+                      </motion.button>
+                      <p className="text-xs" style={{ color: '#A09890' }}>
+                        {voiceState === 'listening' ? 'Speak now, or tap to stop' :
+                         voiceState === 'speaking'  ? 'Tap to interrupt'          : ' '}
+                      </p>
+                    </div>
 
-                <p className="text-sm mt-5" style={{ color: '#A09890' }}>
-                  {voiceState === 'idle'      ? 'Tap the button and speak clearly' :
-                   voiceState === 'listening' ? 'Speak now, or tap to stop'       :
-                   voiceState === 'speaking'  ? 'Tap to interrupt'                : ' '}
-                </p>
+                    <AnimatePresence>
+                      {voiceState === 'idle' ? (
+                        <motion.button
+                          onClick={handleNewConversation}
+                          className="flex flex-col items-center gap-1 w-14 py-1 rounded-xl"
+                          style={{ color: '#A09890' }}
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                          whileHover={{ color: '#1C1917' }}
+                          whileTap={{ scale: .9 }}
+                          title="New conversation"
+                        >
+                          <span className="text-xl leading-none">↺</span>
+                          <span className="text-[10px] font-medium">New</span>
+                        </motion.button>
+                      ) : (
+                        <div className="w-14" />
+                      )}
+                    </AnimatePresence>
+                  </div>
 
-                {/* New conversation button */}
-                <AnimatePresence>
-                  {conversationHistory.length > 0 && voiceState === 'idle' && (
-                    <motion.button
-                      onClick={handleNewConversation}
-                      className="mt-4 flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium"
-                      style={{ color: '#A09890', border: '1.5px solid #D8D0C4', background: 'transparent' }}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      whileHover={{ borderColor: '#1C1917', color: '#1C1917' }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <span>↺</span> New conversation
-                    </motion.button>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* ── Conversation thread ───────────────────────────── */}
-              {(conversationHistory.length > 0 || transcript || response) && (
-                <div className="space-y-3 pb-6">
-                  {/* Past messages */}
-                  {conversationHistory.map((msg, i) => (
-                    msg.role === 'user' ? (
-                      <div key={i} className="flex justify-end">
-                        <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
-                          style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%' }}>
-                          {msg.content}
+                  {/* Scrollable conversation thread */}
+                  <div
+                    ref={threadRef}
+                    className="overflow-y-auto space-y-3 pb-6"
+                    style={{ maxHeight: 'calc(100dvh - 320px)', minHeight: 120 }}
+                  >
+                    {conversationHistory.map((msg, i) => (
+                      msg.role === 'user' ? (
+                        <div key={i} className="flex justify-end">
+                          <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
+                            style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%' }}>
+                            {msg.content}
+                          </div>
                         </div>
-                      </div>
-                    ) : (
-                      <div key={i} className="flex gap-3 items-start">
+                      ) : (
+                        <div key={i} className="flex gap-3 items-start">
+                          <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+                            style={{ background: '#C8A070', marginTop: 2 }}>H</div>
+                          <div className="px-4 py-3 rounded-2xl rounded-bl-md text-[17px] leading-relaxed bg-white shadow-sm"
+                            style={{ maxWidth: '82%', color: '#1C1917' }}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      )
+                    ))}
+
+                    {/* Live: pending user transcript */}
+                    {transcript && (voiceState === 'thinking' || voiceState === 'listening') && (
+                      <motion.div className="flex justify-end"
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                        <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
+                          style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%', opacity: 0.65 }}>
+                          {transcript}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Live: helper typing or streaming */}
+                    {(voiceState === 'thinking' || voiceState === 'speaking' || response) && (
+                      <motion.div className="flex gap-3 items-start"
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
                         <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
                           style={{ background: '#C8A070', marginTop: 2 }}>H</div>
-                        <div className="px-4 py-3 rounded-2xl rounded-bl-md text-[17px] leading-relaxed bg-white shadow-sm"
-                          style={{ maxWidth: '82%', color: '#1C1917' }}>
-                          {msg.content}
+                        <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white shadow-sm" style={{ maxWidth: '82%' }}>
+                          {response ? (
+                            <p className="text-[17px] leading-relaxed" style={{ color: '#1C1917' }}>{response}</p>
+                          ) : (
+                            <div className="flex gap-1.5 py-1">
+                              {[0, 1, 2].map(i => (
+                                <motion.div key={i} className="w-2.5 h-2.5 rounded-full"
+                                  style={{ background: '#C8C0B4' }}
+                                  animate={{ opacity: [.3, 1, .3], scale: [.8, 1.2, .8] }}
+                                  transition={{ duration: .8, repeat: Infinity, delay: i * .2 }}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* Live: pending user transcript */}
-                  {transcript && (voiceState === 'thinking' || voiceState === 'listening') && (
-                    <motion.div className="flex justify-end"
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-                      <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
-                        style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%', opacity: 0.65 }}>
-                        {transcript}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Live: helper typing or streaming */}
-                  {(voiceState === 'thinking' || voiceState === 'speaking' || response) && (
-                    <motion.div className="flex gap-3 items-start"
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
-                        style={{ background: '#C8A070', marginTop: 2 }}>H</div>
-                      <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white shadow-sm" style={{ maxWidth: '82%' }}>
-                        {response ? (
-                          <p className="text-[17px] leading-relaxed" style={{ color: '#1C1917' }}>{response}</p>
-                        ) : (
-                          <div className="flex gap-1.5 py-1">
-                            {[0, 1, 2].map(i => (
-                              <motion.div key={i} className="w-2.5 h-2.5 rounded-full"
-                                style={{ background: '#C8C0B4' }}
-                                animate={{ opacity: [.3, 1, .3], scale: [.8, 1.2, .8] }}
-                                transition={{ duration: .8, repeat: Infinity, delay: i * .2 }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-
-                  <div ref={chatBottomRef} />
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
               )}
             </motion.div>

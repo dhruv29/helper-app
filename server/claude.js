@@ -45,7 +45,15 @@ function detectAlerts(message) {
   const scamPhrases = [
     'gift card', 'wire transfer', 'bitcoin', 'irs', 'social security', 'medicare fraud',
     'grandchild', 'grandson', 'granddaughter', 'police', 'arrest', 'lawsuit',
-    'send money', 'urgent payment', 'remote access', 'computer virus'
+    'send money', 'urgent payment', 'remote access', 'computer virus',
+    'click a link', 'click the link', 'clicked a link', 'clicked the link',
+    'suspicious link', 'click this link', 'phishing',
+    'account will be frozen', 'account frozen', 'freeze your account', 'freeze my account',
+    'lose all', 'bank account number', 'verify your account', 'verify my account',
+    'account verification', 'your password', 'your pin', 'credit card number',
+    'i clicked', 'i have clicked', 'i already clicked',
+    'won a prize', 'you have won', 'lottery', 'inheritance', 'unclaimed funds',
+    'tax refund', 'refund owed'
   ]
 
   const emergencyPhrases = [
