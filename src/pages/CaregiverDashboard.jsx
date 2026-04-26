@@ -824,7 +824,15 @@ export default function CaregiverDashboard({ alerts: alertsProp, profile = {} })
           api.wellness.today(seniorId),
           api.handoffs.latest(seniorId),
         ])
-        if (dbAlerts?.length)    setAlerts(dbAlerts.map(a => ({ ...a, time: new Date(a.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) })))
+        if (dbAlerts?.length) {
+          const mapped = dbAlerts.map(a => ({ ...a, time: new Date(a.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) }))
+          // Merge: keep any in-memory alerts not yet in DB (numeric IDs from addAlert)
+          setAlerts(prev => {
+            const dbIds = new Set(mapped.map(a => a.id))
+            const memOnly = prev.filter(a => typeof a.id === 'number' && !dbIds.has(a.id))
+            return [...memOnly, ...mapped]
+          })
+        }
         if (dbMeds?.length)      setMedications(dbMeds.map(m => ({ id: m.id, name: `${m.name} ${m.dose ?? ''}`.trim(), time: m.schedule, taken: m.taken_today, takenAt: m.last_taken ? new Date(m.last_taken).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null, note: m.schedule })))
         if (dbWellness?.overall) setWellness(dbWellness)
         if (dbHandoff?.body)     setHandoff(dbHandoff)

@@ -45,17 +45,33 @@ function detectAlerts(message) {
   const lower = message.toLowerCase()
 
   const scamPhrases = [
-    'gift card', 'wire transfer', 'bitcoin', 'irs', 'social security', 'medicare fraud',
-    'grandchild', 'grandson', 'granddaughter', 'police', 'arrest', 'lawsuit',
-    'send money', 'urgent payment', 'remote access', 'computer virus',
-    'click a link', 'click the link', 'clicked a link', 'clicked the link',
-    'suspicious link', 'click this link', 'phishing',
-    'account will be frozen', 'account frozen', 'freeze your account', 'freeze my account',
-    'lose all', 'bank account number', 'verify your account', 'verify my account',
-    'account verification', 'your password', 'your pin', 'credit card number',
-    'i clicked', 'i have clicked', 'i already clicked',
+    // Payment demands
+    'gift card', 'wire transfer', 'bitcoin', 'cryptocurrency', 'send money', 'urgent payment',
+    'transfer money', 'pay them', 'paid them',
+    // Authority impersonation
+    'irs', 'social security', 'medicare', 'police', 'government', 'customs', 'immigration',
+    'arrest', 'lawsuit', 'warrant', 'fbi', 'investigation',
+    // Family scams
+    'grandchild', 'grandson', 'granddaughter', 'my grandson', 'my granddaughter',
+    // Tech / account
+    'remote access', 'computer virus', 'hacked', 'compromised', 'your account has',
+    'my account has', 'bank account', 'credit card', 'debit card',
+    'account frozen', 'account suspended', 'account blocked', 'account will be',
+    'freeze', 'suspended',
+    // Credentials shared
+    'my password', 'your password', 'my pin', 'your pin', 'otp', 'one time password',
+    'verification code', 'my details', 'my information', 'my credentials', 'credentials',
+    'gave them', 'told them', 'shared my', 'gave my',
+    // Links / phishing
+    'clicked', 'click a link', 'suspicious link', 'suspicious message', 'suspicious call',
+    'suspicious text', 'phishing', 'fake link', 'strange link', 'strange message',
+    'message on my phone', 'text saying', 'text message',
+    // Prizes / windfalls
     'won a prize', 'you have won', 'lottery', 'inheritance', 'unclaimed funds',
-    'tax refund', 'refund owed'
+    'tax refund', 'refund', 'jackpot',
+    // Generic scam signals
+    'scam', 'fraud', 'someone called', 'they called', 'caller said',
+    'they said i owe', 'i owe money', 'pay a fine',
   ]
 
   const emergencyPhrases = [
