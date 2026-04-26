@@ -33,7 +33,7 @@ function saveToLocalStorage(history) {
 
 
 const VoiceConnect = forwardRef(function VoiceConnect(
-  { onAlert, mode = 'senior', onStateChange, onResponse, onTranscript, compact = false, headless = false },
+  { onAlert, mode = 'senior', onStateChange, onResponse, onTranscript, onHistory, compact = false, headless = false },
   ref
 ) {
   const [voiceState, setVoiceState] = useState(STATES.IDLE)
@@ -82,17 +82,34 @@ const VoiceConnect = forwardRef(function VoiceConnect(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
-        .then(res => res.ok ? res.blob() : null)
+        .then(res => {
+          if (!res.ok) {
+            console.error('[speak] server error:', res.status)
+            return null
+          }
+          return res.blob()
+        })
         .then(blob => {
           if (!blob) { speakWithBrowser(text, resolve); return }
           const url = URL.createObjectURL(blob)
           const audio = new Audio(url)
           audioRef.current = audio
           audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-          audio.onerror = () => { URL.revokeObjectURL(url); audioRef.current = null; resolve() }
-          audio.play().catch(() => speakWithBrowser(text, resolve))
+          audio.onerror = (e) => {
+            console.error('[speak] audio decode error:', e)
+            URL.revokeObjectURL(url)
+            audioRef.current = null
+            speakWithBrowser(text, resolve)
+          }
+          audio.play().catch(e => {
+            console.error('[speak] play() rejected:', e)
+            speakWithBrowser(text, resolve)
+          })
         })
-        .catch(() => speakWithBrowser(text, resolve))
+        .catch(e => {
+          console.error('[speak] fetch error:', e)
+          speakWithBrowser(text, resolve)
+        })
     })
   }, [])
 
@@ -108,6 +125,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       { role: 'user', content: userText },
     ]
     setConversationHistory(newHistory)
+    onHistory?.(newHistory)
 
     try {
       const res = await fetch('/api/voice-chat', {
@@ -142,6 +160,7 @@ const VoiceConnect = forwardRef(function VoiceConnect(
       const finalHistory = [...newHistory, { role: 'assistant', content: fullResponse }]
       setConversationHistory(finalHistory)
       saveToLocalStorage(finalHistory)
+      onHistory?.(finalHistory)
       setResponse('') // clear live bubble — message is now in history
 
       if (fromVoice && fullResponse && !abortRef.current) {

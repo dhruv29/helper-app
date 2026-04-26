@@ -23,12 +23,12 @@ There are no tests in this project.
 Copy the keys from `.env` — required keys:
 - `ANTHROPIC_API_KEY` — Claude (voice chat)
 - `OPENAI_API_KEY` — Whisper transcription
-- `PORT` — defaults to 3001 if unset (`.env` sets it to 3000)
+- `PORT` — defaults to 3001 if unset (`.env` sets it to 3000, matching the Vite proxy target)
 
-Optional TTS (falls back to browser `speechSynthesis` if unset):
+Optional TTS — auto-selected by priority: `TTS_PROVIDER` env var → ElevenLabs if key present → Fish Audio if key present → error. Falls back to browser `speechSynthesis` only if the frontend catches a `/api/speak` failure:
 - `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID`
 - `FISH_AUDIO_API_KEY` / `FISH_AUDIO_VOICE_ID`
-- `TTS_PROVIDER=elevenlabs|fish` — override auto-selection
+- `TTS_PROVIDER=elevenlabs|fish` — force a specific provider
 
 Clerk (required for auth — frontend only):
 - `VITE_CLERK_PUBLISHABLE_KEY` — from clerk.com → your app → API Keys
@@ -81,7 +81,11 @@ Auth flow: **Login → (no profile) → Onboarding → App** / **(profile exists
 
 ## Architecture
 
-This is a fullstack eldercare assistant. The frontend is a React SPA; the backend is an Express server that proxies to Anthropic, OpenAI, and TTS providers. Vite proxies `/api/*` to `localhost:3000` in dev. In production (Vercel), `api/[...path].js` is the serverless entry point that re-exports the Express app.
+This is a fullstack eldercare assistant. The frontend is a React SPA; the backend is an Express server that proxies to Anthropic, OpenAI, and TTS providers. Vite proxies `/api/*` to `localhost:3000` in dev (configured in `vite.config.js`). In production (Vercel), `api/[...path].js` is the serverless entry point that re-exports the Express app.
+
+The Vite dev server runs HTTPS via `@vitejs/plugin-basic-ssl` — this is required for the browser `MediaRecorder` API (microphone access). The plugin is only active in `serve` mode; production builds use standard HTTP.
+
+The Express CORS config (`origin: /localhost/`) only allows localhost origins. If deploying to a custom domain outside Vercel, update the `cors()` call in `server/index.js`.
 
 ### Data flow for a voice interaction
 
@@ -128,7 +132,7 @@ It runs a state machine: `idle → listening → thinking → speaking → idle`
 - `SYSTEM_SENIOR` — Sarah persona, warm companion for the elder; short responses, no special characters
 - `SYSTEM_CAREGIVER` — practical eldercare advisor for the family member
 
-Mode is selected by the `mode` field in the `/api/voice-chat` request body (`'senior'` or `'caregiver'`).
+Mode is selected by the `mode` field in the `/api/voice-chat` request body (`'senior'` or `'caregiver'`). The model is `claude-haiku-4-5-20251001` with `max_tokens: 150` — intentionally small for low-latency voice responses.
 
 ### Styling
 
@@ -143,7 +147,9 @@ Tailwind with custom tokens in `tailwind.config.js`:
 
 `server/db.js` is the Supabase data-access module — all DB calls go through it. `src/lib/api.js` is the frontend wrapper around the Express REST endpoints.
 
-REST routes added to `server/index.js`:
+`syncMedications` does a full delete + re-insert for a senior's medications on each setup save — additions and removals are both handled this way.
+
+REST routes in `server/index.js`:
 - `GET /api/alerts` · `POST /api/alerts` · `PATCH /api/alerts/:id/resolve`
 - `GET /api/medications` · `PATCH /api/medications/:id/taken`
 - `GET|PUT /api/wellness`

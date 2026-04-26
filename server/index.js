@@ -37,7 +37,7 @@ app.post('/api/transcribe', async (req, res) => {
     const buffer = Buffer.from(audio, 'base64')
     const ext = mimeType?.includes('mp4') ? 'm4a' : 'webm'
     const file = new File([buffer], `audio.${ext}`, { type: mimeType || 'audio/webm' })
-    const result = await openai.audio.transcriptions.create({ file, model: 'whisper-1', language: 'en' })
+    const result = await openai.audio.transcriptions.create({ file, model: 'whisper-1' })
     res.json({ transcript: result.text })
   } catch (err) {
     console.error('[transcribe error]', err.message)
@@ -55,11 +55,14 @@ async function ttsElevenLabs(text) {
     headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       text,
-      model_id: 'eleven_turbo_v2_5',
+      model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2',
       voice_settings: { stability: 0.75, similarity_boost: 0.75 },
     }),
   })
-  if (!r.ok) throw new Error(`ElevenLabs: ${await r.text()}`)
+  if (!r.ok) {
+    const body = await r.text()
+    throw new Error(`ElevenLabs ${r.status}: ${body}`)
+  }
   return r.arrayBuffer()
 }
 

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import VoiceConnect from '../components/VoiceConnect'
 
@@ -24,13 +24,14 @@ const UPCOMING = {
 
 const greeting = (name) => {
   const h = new Date().getHours()
-  const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
-  return `Good ${time}, ${name || 'there'}. How are you feeling today?`
+  const greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  return `${greet}, ${name || 'there'}.`
 }
 
 // ── Breathing orb ──────────────────────────────────────────────────────────────
 
-function HelperOrb({ voiceState }) {
+function HelperOrb({ voiceState, size = 180 }) {
+  const s = size / 180
   const listening  = voiceState === 'listening'
   const thinking   = voiceState === 'thinking'
   const speaking   = voiceState === 'speaking'
@@ -52,12 +53,12 @@ function HelperOrb({ voiceState }) {
   }
 
   return (
-    <div style={{ position: 'relative', width: 180, height: 180 }}>
+    <div style={{ position: 'relative', width: size, height: size }}>
       {/* Outer ambient glow */}
       <div
         className={listening ? 'orb-pulse-glow' : 'orb-breathe-d2'}
         style={{
-          position: 'absolute', inset: -48,
+          position: 'absolute', inset: Math.round(-48 * s),
           background: `radial-gradient(circle, ${glowColor} 0%, rgba(237,232,223,0) 70%)`,
           borderRadius: '50%',
         }}
@@ -66,7 +67,7 @@ function HelperOrb({ voiceState }) {
       <div
         className={listening ? 'orb-pulse-glow' : 'orb-breathe-d1'}
         style={{
-          position: 'absolute', inset: -22,
+          position: 'absolute', inset: Math.round(-22 * s),
           background: `radial-gradient(circle, ${glowColor} 0%, rgba(237,232,223,0) 65%)`,
           borderRadius: '50%',
           opacity: .6,
@@ -76,7 +77,7 @@ function HelperOrb({ voiceState }) {
       <div
         className="orb-breathe-d1"
         style={{
-          position: 'absolute', inset: 10,
+          position: 'absolute', inset: Math.round(10 * s),
           border: '1.5px solid rgba(200,140,110,.22)',
           borderRadius: '50%',
         }}
@@ -85,7 +86,7 @@ function HelperOrb({ voiceState }) {
       <div
         className={listening ? 'orb-pulse' : 'orb-breathe'}
         style={{
-          position: 'absolute', inset: 22,
+          position: 'absolute', inset: Math.round(22 * s),
           borderRadius: '50%',
           transition: 'background .6s ease, box-shadow .6s ease',
           ...coreStyle,
@@ -307,13 +308,19 @@ function TabBar({ tab, setTab }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SeniorHome({ onAlert, profile = {} }) {
-  const [tab, setTab]             = useState('talk')
+  const [tab, setTab]               = useState('talk')
   const [voiceState, setVoiceState] = useState('idle')
-  const [response, setResponse]   = useState('')
+  const [response, setResponse]     = useState('')
   const [transcript, setTranscript] = useState('')
+  const [conversationHistory, setConversationHistory] = useState([])
   const [sosConfirm, setSosConfirm] = useState(false)
-  const [sosSent, setSosSent]     = useState(false)
+  const [sosSent, setSosSent]       = useState(false)
   const vcRef = useRef(null)
+  const chatBottomRef = useRef(null)
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [conversationHistory, response])
 
   const handleQuickAction = (message) => {
     setTab('talk')
@@ -332,9 +339,9 @@ export default function SeniorHome({ onAlert, profile = {} }) {
 
   const buttonLabel =
     voiceState === 'listening' ? "I'm listening…" :
-    voiceState === 'thinking'  ? 'Thinking…'       :
-    voiceState === 'speaking'  ? 'Speaking…'        :
-    voiceState === 'error'     ? 'Try again'        :
+    voiceState === 'thinking'  ? 'Thinking…'      :
+    voiceState === 'speaking'  ? 'Speaking…'      :
+    voiceState === 'error'     ? 'Try again'      :
     "I'm here"
 
   const buttonBg =
@@ -343,11 +350,6 @@ export default function SeniorHome({ onAlert, profile = {} }) {
     voiceState === 'speaking'  ? '#8FAF9F' :
     voiceState === 'error'     ? '#C0392B' :
     '#1C1917'
-
-  const displayText =
-    response   ? response   :
-    transcript ? null       :
-    greeting(profile.parentName)
 
   return (
     <div className="min-h-screen" style={{ background: '#EDE8DF' }}>
@@ -362,6 +364,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
         onStateChange={setVoiceState}
         onResponse={setResponse}
         onTranscript={setTranscript}
+        onHistory={setConversationHistory}
       />
 
       <div className="max-w-2xl mx-auto px-4 pt-4 pb-28 sm:pb-8">
@@ -429,59 +432,24 @@ export default function SeniorHome({ onAlert, profile = {} }) {
                 )}
               </AnimatePresence>
 
-              {/* Orb — centred on cream */}
+              {/* Orb + button */}
               <div className="flex flex-col items-center py-6">
-
-                <div className="mb-8">
-                  <HelperOrb voiceState={voiceState} />
+                <div className="mb-6">
+                  <HelperOrb voiceState={voiceState} size={conversationHistory.length > 0 ? 100 : 180} />
                 </div>
 
-                {/* Transcript bubble */}
-                <AnimatePresence>
-                  {transcript && (voiceState === 'thinking' || voiceState === 'listening') && (
-                    <motion.div
-                      className="w-full mb-4 rounded-2xl px-5 py-3"
-                      style={{ background: 'rgba(28,25,23,.06)', border: '1px solid rgba(28,25,23,.08)' }}
-                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    >
-                      <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: '#A09890' }}>You said</p>
-                      <p className="text-helper-ink leading-relaxed">{transcript}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {/* Greeting — only when no conversation yet */}
+                {conversationHistory.length === 0 && !response && !transcript && (
+                  <motion.p
+                    className="font-lora text-2xl text-center leading-relaxed mb-6 px-2"
+                    style={{ color: '#1C1917', fontWeight: 400, maxWidth: 440 }}
+                    initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: .3 }}
+                  >
+                    {greeting(profile.parentName)}
+                  </motion.p>
+                )}
 
-                {/* Helper greeting / response text */}
-                <AnimatePresence mode="wait">
-                  {displayText && (
-                    <motion.p
-                      key={displayText.slice(0, 30)}
-                      className="font-lora text-2xl text-center leading-relaxed mb-8 px-2"
-                      style={{ color: '#1C1917', fontWeight: 400, maxWidth: 440 }}
-                      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }} transition={{ duration: .3 }}
-                    >
-                      {displayText}
-                    </motion.p>
-                  )}
-                  {voiceState === 'thinking' && !response && (
-                    <motion.div
-                      key="typing"
-                      className="flex gap-2 items-center mb-8"
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    >
-                      {[0, 1, 2].map(i => (
-                        <motion.div
-                          key={i} className="w-2.5 h-2.5 rounded-full"
-                          style={{ background: '#C8C0B4' }}
-                          animate={{ opacity: [.3, 1, .3], scale: [.8, 1.2, .8] }}
-                          transition={{ duration: .8, repeat: Infinity, delay: i * .2 }}
-                        />
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* "I'm here" button — dark pill, no card box */}
                 <motion.button
                   onClick={() => vcRef.current?.triggerVoice()}
                   disabled={voiceState === 'thinking'}
@@ -498,12 +466,74 @@ export default function SeniorHome({ onAlert, profile = {} }) {
                 </motion.button>
 
                 <p className="text-sm mt-5" style={{ color: '#A09890' }}>
-                  {voiceState === 'idle'      ? 'Tap the button and speak clearly'  :
-                   voiceState === 'listening' ? 'Speak now, or tap to stop'         :
-                   voiceState === 'speaking'  ? 'Tap to interrupt'                  : '\u00A0'}
+                  {voiceState === 'idle'      ? 'Tap the button and speak clearly' :
+                   voiceState === 'listening' ? 'Speak now, or tap to stop'       :
+                   voiceState === 'speaking'  ? 'Tap to interrupt'                : ' '}
                 </p>
-
               </div>
+
+              {/* ── Conversation thread ───────────────────────────── */}
+              {(conversationHistory.length > 0 || transcript || response) && (
+                <div className="space-y-3 pb-6">
+                  {/* Past messages */}
+                  {conversationHistory.map((msg, i) => (
+                    msg.role === 'user' ? (
+                      <div key={i} className="flex justify-end">
+                        <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
+                          style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%' }}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={i} className="flex gap-3 items-start">
+                        <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+                          style={{ background: '#C8A070', marginTop: 2 }}>H</div>
+                        <div className="px-4 py-3 rounded-2xl rounded-bl-md text-[17px] leading-relaxed bg-white shadow-sm"
+                          style={{ maxWidth: '82%', color: '#1C1917' }}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    )
+                  ))}
+
+                  {/* Live: pending user transcript */}
+                  {transcript && (voiceState === 'thinking' || voiceState === 'listening') && (
+                    <motion.div className="flex justify-end"
+                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                      <div className="px-4 py-3 rounded-2xl rounded-br-md text-[17px] leading-relaxed"
+                        style={{ background: '#1C1917', color: '#EDE8DF', maxWidth: '82%', opacity: 0.65 }}>
+                        {transcript}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Live: helper typing or streaming */}
+                  {(voiceState === 'thinking' || voiceState === 'speaking' || response) && (
+                    <motion.div className="flex gap-3 items-start"
+                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+                        style={{ background: '#C8A070', marginTop: 2 }}>H</div>
+                      <div className="px-4 py-3 rounded-2xl rounded-bl-md bg-white shadow-sm" style={{ maxWidth: '82%' }}>
+                        {response ? (
+                          <p className="text-[17px] leading-relaxed" style={{ color: '#1C1917' }}>{response}</p>
+                        ) : (
+                          <div className="flex gap-1.5 py-1">
+                            {[0, 1, 2].map(i => (
+                              <motion.div key={i} className="w-2.5 h-2.5 rounded-full"
+                                style={{ background: '#C8C0B4' }}
+                                animate={{ opacity: [.3, 1, .3], scale: [.8, 1.2, .8] }}
+                                transition={{ duration: .8, repeat: Infinity, delay: i * .2 }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  <div ref={chatBottomRef} />
+                </div>
+              )}
             </motion.div>
           )}
 
