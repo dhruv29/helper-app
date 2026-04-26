@@ -384,7 +384,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
 
   const handleNewConversation = () => {
     if (activeConvIdRef.current) {
-      api.conversations.end(activeConvIdRef.current, {}).catch(() => {})
+      api.conversations.end(activeConvIdRef.current, { messages: conversationHistory }).catch(() => {})
       activeConvIdRef.current = null
     }
     vcRef.current?.newConversation()

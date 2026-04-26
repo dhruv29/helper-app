@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import OpenAI from 'openai'
-import { createVoiceChatStream } from './claude.js'
+import { createVoiceChatStream, summarizeConversation } from './claude.js'
 import {
   getAlerts, createAlert, resolveAlert,
   getMedications, markMedicationTaken,
@@ -264,7 +264,16 @@ app.post('/api/conversations', async (req, res) => {
 
 app.patch('/api/conversations/:id/end', async (req, res) => {
   try {
-    const data = await endConversation(req.params.id, req.body)
+    const { messages, ...rest } = req.body
+    let { mood, summary } = rest
+    if (messages?.length && !summary) {
+      try {
+        const result = await summarizeConversation(messages)
+        mood = result.mood
+        summary = result.summary
+      } catch { /* non-critical */ }
+    }
+    const data = await endConversation(req.params.id, { ...rest, mood, summary })
     res.json(data)
   } catch (err) {
     res.status(500).json({ error: err.message })

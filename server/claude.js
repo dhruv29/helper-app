@@ -116,3 +116,25 @@ export async function createVoiceChatStream({ message, history, mode, res }) {
   res.write('data: [DONE]\n\n')
   res.end()
 }
+
+export async function summarizeConversation(messages) {
+  if (!messages?.length) return { summary: null, mood: null }
+  const transcript = messages
+    .map(m => `${m.role === 'user' ? 'Senior' : 'Helper'}: ${m.content}`)
+    .join('\n')
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 120,
+    messages: [{
+      role: 'user',
+      content: `Summarize this conversation in one sentence for a family caregiver, then pick the senior's mood.\nConversation:\n${transcript}\n\nReply with only valid JSON: {"summary":"...","mood":"happy"|"neutral"|"concerned"|"sad"}`,
+    }],
+  })
+  const raw = response.content[0]?.text?.trim() || ''
+  try {
+    const parsed = JSON.parse(raw)
+    return { summary: parsed.summary || null, mood: parsed.mood || null }
+  } catch {
+    return { summary: raw.slice(0, 200) || null, mood: null }
+  }
+}
