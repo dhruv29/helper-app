@@ -146,6 +146,8 @@ app.post('/api/setup', async (req, res) => {
             caregiverName, relationship, emergencyName, emergencyPhone, medications,
             clerkUserId } = req.body
 
+    console.log('[setup] called — clerkUserId:', clerkUserId, 'parentName:', parentName, 'caregiverName:', caregiverName)
+
     // If we have a clerkUserId, check if this caregiver already exists to reuse their seniorId
     let effectiveSeniorId = seniorId
     if (clerkUserId && !seniorId) {
@@ -155,16 +157,23 @@ app.post('/api/setup', async (req, res) => {
 
     const senior = await upsertSenior({
       id: effectiveSeniorId || undefined,
-      name: parentName, age: parentAge, city: parentCity, healthNotes, interests,
+      name: parentName || 'Unknown',
+      age: parentAge, city: parentCity, healthNotes, interests,
     })
+    console.log('[setup] senior upserted:', senior.id)
+
     const caregiver = await upsertCaregiver({
       id: caregiverId || undefined,
-      name: caregiverName, relationship, seniorId: senior.id,
+      name: caregiverName || 'Caregiver',
+      relationship, seniorId: senior.id,
       emergencyName, emergencyPhone, clerkUserId,
     })
+    console.log('[setup] caregiver upserted:', caregiver.id)
+
     if (medications) await syncMedications(senior.id, medications)
     res.json({ seniorId: senior.id, caregiverId: caregiver.id })
   } catch (err) {
+    console.error('[setup] ERROR:', err.message, err.details || '')
     res.status(500).json({ error: err.message })
   }
 })

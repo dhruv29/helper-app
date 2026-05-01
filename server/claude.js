@@ -44,34 +44,43 @@ Always recommend professional medical or legal advice for serious concerns.`
 function detectAlerts(message) {
   const lower = message.toLowerCase()
 
-  const scamPhrases = [
-    // Payment demands
-    'gift card', 'wire transfer', 'bitcoin', 'cryptocurrency', 'send money', 'urgent payment',
-    'transfer money', 'pay them', 'paid them',
-    // Authority impersonation
-    'irs', 'social security', 'medicare', 'police', 'government', 'customs', 'immigration',
-    'arrest', 'lawsuit', 'warrant', 'fbi', 'investigation',
-    // Family scams
-    'grandchild', 'grandson', 'granddaughter', 'my grandson', 'my granddaughter',
-    // Tech / account
-    'remote access', 'computer virus', 'hacked', 'compromised', 'your account has',
-    'my account has', 'bank account', 'credit card', 'debit card',
-    'account frozen', 'account suspended', 'account blocked', 'account will be',
-    'freeze', 'suspended',
-    // Credentials shared
-    'my password', 'your password', 'my pin', 'your pin', 'otp', 'one time password',
-    'verification code', 'my details', 'my information', 'my credentials', 'credentials',
-    'gave them', 'told them', 'shared my', 'gave my',
-    // Links / phishing
-    'clicked', 'click a link', 'suspicious link', 'suspicious message', 'suspicious call',
-    'suspicious text', 'phishing', 'fake link', 'strange link', 'strange message',
-    'message on my phone', 'text saying', 'text message',
-    // Prizes / windfalls
-    'won a prize', 'you have won', 'lottery', 'inheritance', 'unclaimed funds',
-    'tax refund', 'refund', 'jackpot',
-    // Generic scam signals
-    'scam', 'fraud', 'someone called', 'they called', 'caller said',
-    'they said i owe', 'i owe money', 'pay a fine',
+  const scamCategories = [
+    {
+      phrases: ['gift card', 'wire transfer', 'bitcoin', 'cryptocurrency', 'send money', 'urgent payment', 'transfer money', 'pay them', 'paid them', 'i owe money', 'they said i owe', 'pay a fine'],
+      msg: 'Your parent was asked to send money or purchase gift cards. Helper intercepted and warned them this is a scam tactic.',
+    },
+    {
+      phrases: ['irs', 'social security', 'medicare', 'police', 'government', 'customs', 'immigration', 'arrest', 'lawsuit', 'warrant', 'fbi', 'investigation'],
+      msg: 'Your parent received a call impersonating a government agency. Helper warned them it is a scam and no action is needed.',
+    },
+    {
+      phrases: ['grandchild', 'grandson', 'granddaughter', 'my grandson', 'my granddaughter'],
+      msg: 'Your parent may have received a grandparent scam call. Helper warned them to verify any family emergency through you directly.',
+    },
+    {
+      phrases: ['remote access', 'computer virus', 'hacked', 'compromised'],
+      msg: 'Your parent was told their computer or account was hacked and asked to allow remote access. Helper warned them not to proceed.',
+    },
+    {
+      phrases: ['gave them', 'told them', 'shared my', 'gave my', 'my password', 'my pin', 'otp', 'one time password', 'verification code', 'my credentials'],
+      msg: 'Your parent may have shared sensitive information with an unknown caller. Helper intervened and advised them to stop.',
+    },
+    {
+      phrases: ['bank account', 'credit card', 'debit card', 'account frozen', 'account suspended', 'account blocked', 'account will be', 'freeze', 'suspended', 'your account has', 'my account has'],
+      msg: 'Your parent received a suspicious alert about their bank or credit account. Helper warned them not to share any details.',
+    },
+    {
+      phrases: ['clicked', 'click a link', 'suspicious link', 'suspicious message', 'suspicious call', 'suspicious text', 'phishing', 'fake link', 'strange link', 'strange message', 'message on my phone', 'text saying', 'text message', 'has a link', 'a link'],
+      msg: 'Your parent received a suspicious message containing a link. Helper warned them not to click it.',
+    },
+    {
+      phrases: ['won a prize', 'you have won', 'lottery', 'inheritance', 'unclaimed funds', 'tax refund', 'refund', 'jackpot'],
+      msg: 'Your parent was told they won a prize or are owed a refund. Helper warned them this is a common scam.',
+    },
+    {
+      phrases: ['scam', 'fraud', 'someone called', 'they called', 'caller said'],
+      msg: 'Your parent reported a suspicious call or message. Helper warned them and advised them not to take any action.',
+    },
   ]
 
   const emergencyPhrases = [
@@ -79,11 +88,12 @@ function detectAlerts(message) {
     'help me', 'bleeding', 'unconscious', 'not responding'
   ]
 
-  if (scamPhrases.some(p => lower.includes(p))) {
+  const matchedScam = scamCategories.find(c => c.phrases.some(p => lower.includes(p)))
+  if (matchedScam) {
     return {
       type: 'high',
       title: '🚨 Potential Scam Detected',
-      msg: `Your parent mentioned: "${message.slice(0, 80)}..." — Helper warned them immediately.`,
+      msg: matchedScam.msg,
       icon: '🛡️'
     }
   }
@@ -92,7 +102,7 @@ function detectAlerts(message) {
     return {
       type: 'high',
       title: '🚨 Possible Emergency',
-      msg: `Your parent may need help: "${message.slice(0, 80)}..." — Check on them now.`,
+      msg: 'Your parent may need immediate help. Check on them now.',
       icon: '🚨'
     }
   }

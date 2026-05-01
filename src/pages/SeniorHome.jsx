@@ -372,7 +372,7 @@ export default function SeniorHome({ onAlert, profile = {} }) {
       title: alert.title,
       msg: alert.msg,
       icon: alert.icon,
-    }).catch(() => { /* non-critical */ })
+    }).catch(err => console.error('[alert] failed to save:', err.message))
   }
 
   const handleQuickAction = (message) => {
